@@ -1,0 +1,11 @@
+# DevCore's graphical login contract. greetd owns PAM, the active seat, and
+# the transition from this greeter to the authenticated native Wayland session.
+
+[terminal]
+vt = 1
+
+[default_session]
+# The greeter is a Wayland client. Start the native compositor first and let
+# it own the physical seat until greetd starts the authenticated user session.
+command = "/usr/bin/devcore-compositor --backend drm --shell /usr/bin/devcore-greeter"
+user = "devcore"

@@ -1,0 +1,25 @@
+[Unit]
+Description=DevCore Update and Release Management boundary
+
+[Service]
+Type=dbus
+BusName=org.devcore.Update1
+ExecStart=/usr/libexec/devcore/devcore-updated
+User=root
+Group=root
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+ReadOnlyPaths=/etc /usr /var /run
+
+[Install]
+WantedBy=multi-user.target

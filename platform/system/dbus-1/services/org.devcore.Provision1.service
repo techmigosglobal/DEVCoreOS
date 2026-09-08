@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.devcore.Provision1
+Exec=/usr/libexec/devcore/devcore-provisiond

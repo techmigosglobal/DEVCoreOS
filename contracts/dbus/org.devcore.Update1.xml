@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.Update1">
+    <property name="Channel" type="s" access="read"/>
+    <method name="StatusJson">
+      <arg name="status" type="s" direction="out"/>
+    </method>
+    <method name="Plan">
+      <arg name="operation" type="s" direction="in"/>
+      <arg name="channel" type="s" direction="in"/>
+      <arg name="image" type="s" direction="in"/>
+      <arg name="plan" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

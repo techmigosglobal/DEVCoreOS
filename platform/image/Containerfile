@@ -1,0 +1,62 @@
+# x86-64 Fedora bootc runtime pinned in platform/image/base-images.lock.
+FROM quay.io/fedora/fedora-bootc@sha256:892898170e5a78c2d32ca4774c72f1ceef208ea7305e2a7bf3675ccc9b8569bf
+
+LABEL org.opencontainers.image.title="DevCore OS" \
+      org.opencontainers.image.description="Developer-focused Fedora bootc image" \
+      org.opencontainers.image.vendor="DevCore"
+
+# The OCI build script stages only these reviewed files into its temporary
+# build context, avoiding accidental inclusion of local toolchains or secrets.
+COPY usr/libexec/devcore/devcored /usr/libexec/devcore/devcored
+COPY usr/libexec/devcore/devcore-firstbootd /usr/libexec/devcore/devcore-firstbootd
+COPY usr/libexec/devcore/devcore-hardwared /usr/libexec/devcore/devcore-hardwared
+COPY usr/libexec/devcore/devcore-updated /usr/libexec/devcore/devcore-updated
+COPY usr/libexec/devcore/devcore-workd /usr/libexec/devcore/devcore-workd
+COPY usr/libexec/devcore/devcore-provisiond /usr/libexec/devcore/devcore-provisiond
+COPY usr/bin/devcore-shell /usr/bin/devcore-shell
+COPY usr/bin/devcore-greeter /usr/bin/devcore-greeter
+COPY usr/bin/devcore-compositor /usr/bin/devcore-compositor
+COPY usr/lib/systemd/system/devcored.service /usr/lib/systemd/system/devcored.service
+COPY usr/lib/systemd/system/devcore-firstbootd.service /usr/lib/systemd/system/devcore-firstbootd.service
+COPY usr/lib/systemd/system/devcore-hardwared.service /usr/lib/systemd/system/devcore-hardwared.service
+COPY usr/lib/systemd/system/devcore-updated.service /usr/lib/systemd/system/devcore-updated.service
+COPY usr/lib/sysusers.d/devcore.conf /usr/lib/sysusers.d/devcore.conf
+COPY usr/share/dbus-1/system.d/org.devcore.Resource1.conf /usr/share/dbus-1/system.d/org.devcore.Resource1.conf
+COPY usr/share/dbus-1/system.d/org.devcore.FirstBoot1.conf /usr/share/dbus-1/system.d/org.devcore.FirstBoot1.conf
+COPY usr/share/dbus-1/system.d/org.devcore.Hardware1.conf /usr/share/dbus-1/system.d/org.devcore.Hardware1.conf
+COPY usr/share/dbus-1/system.d/org.devcore.Update1.conf /usr/share/dbus-1/system.d/org.devcore.Update1.conf
+COPY usr/share/dbus-1/system-services/org.devcore.Resource1.service /usr/share/dbus-1/system-services/org.devcore.Resource1.service
+COPY usr/share/dbus-1/system-services/org.devcore.FirstBoot1.service /usr/share/dbus-1/system-services/org.devcore.FirstBoot1.service
+COPY usr/share/dbus-1/system-services/org.devcore.Hardware1.service /usr/share/dbus-1/system-services/org.devcore.Hardware1.service
+COPY usr/share/dbus-1/system-services/org.devcore.Update1.service /usr/share/dbus-1/system-services/org.devcore.Update1.service
+COPY usr/share/dbus-1/services/org.devcore.Work1.service /usr/share/dbus-1/services/org.devcore.Work1.service
+COPY usr/share/dbus-1/services/org.devcore.Provision1.service /usr/share/dbus-1/services/org.devcore.Provision1.service
+COPY etc/greetd/config.toml /etc/greetd/config.toml
+
+RUN dnf --assumeyes --setopt=install_weak_deps=False install \
+        ca-certificates \
+        flatpak \
+        foot \
+        greetd \
+        git-core \
+        glibc-langpack-en \
+        libdrm \
+        libinput \
+        libseat \
+        mesa-dri-drivers \
+        mesa-libgbm \
+        NetworkManager-wifi \
+        openssh-clients \
+        podman \
+        zram-generator-defaults \
+        libxkbcommon \
+        wireplumber \
+        xorg-x11-server-Xwayland \
+    && dnf clean all \
+    && chmod 0755 /usr/libexec/devcore/devcored \
+    && chmod 0755 /usr/libexec/devcore/devcore-firstbootd \
+    && chmod 0755 /usr/libexec/devcore/devcore-hardwared \
+    && chmod 0755 /usr/libexec/devcore/devcore-updated \
+    && chmod 0755 /usr/libexec/devcore/devcore-provisiond \
+    && chmod 0755 /usr/bin/devcore-compositor \
+    && systemctl enable devcored.service devcore-hardwared.service devcore-updated.service greetd.service

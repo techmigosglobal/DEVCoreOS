@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  The installer never accepts a password as a string.  Start receives a
+  Unix-file-descriptor that contains the password once; the daemon must close
+  it after applying the account configuration and must not include it in logs,
+  job state, process arguments, or D-Bus signals.
+-->
+<node>
+  <interface name="org.devcore.Installer1">
+    <method name="ListDisks">
+      <arg name="disks" type="aa{sv}" direction="out"/>
+      <annotation name="org.devcore.Access" value="read-only"/>
+    </method>
+    <method name="Preflight">
+      <arg name="disk_id" type="s" direction="in"/>
+      <arg name="confirmation" type="s" direction="out"/>
+      <arg name="review" type="a{sv}" direction="out"/>
+      <annotation name="org.devcore.DiskId" value="must be a canonical /dev/disk/by-id path"/>
+      <annotation name="org.devcore.Preflight" value="rejects removable, loop, live-media, running-root, and disks below 32 GiB"/>
+    </method>
+    <method name="Start">
+      <arg name="confirmation" type="s" direction="in"/>
+      <arg name="configuration" type="a{sv}" direction="in"/>
+      <arg name="password_fd" type="h" direction="in"/>
+      <arg name="job" type="o" direction="out"/>
+      <annotation name="org.devcore.AuthorizationAction" value="org.devcore.installer.manage"/>
+      <annotation name="org.devcore.SecretHandling" value="password_fd is transient-only; never stored, logged, or passed through argv"/>
+      <annotation name="org.devcore.TargetLayout" value="GPT; 1 GiB EFI System Partition; ext4 root; x86-64 UEFI only"/>
+      <annotation name="org.devcore.Payload" value="verify embedded OCI archive SHA-256, load it locally, then invoke bootc install to-filesystem"/>
+    </method>
+    <method name="Status">
+      <arg name="job" type="o" direction="in"/>
+      <arg name="status" type="a{sv}" direction="out"/>
+    </method>
+    <method name="Cancel">
+      <arg name="job" type="o" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+      <annotation name="org.devcore.Cancellation" value="accepted only before destructive storage changes"/>
+    </method>
+    <signal name="Progress">
+      <arg name="job" type="o"/>
+      <arg name="phase" type="s"/>
+      <arg name="completed" type="u"/>
+      <arg name="detail" type="s"/>
+    </signal>
+    <signal name="StateChanged">
+      <arg name="job" type="o"/>
+      <arg name="state" type="s"/>
+      <arg name="retryable" type="b"/>
+      <arg name="diagnostic" type="s"/>
+    </signal>
+  </interface>
+</node>

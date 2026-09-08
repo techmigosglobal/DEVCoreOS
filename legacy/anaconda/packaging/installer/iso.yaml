@@ -1,0 +1,9 @@
+# The ISO menu starts the graphical Anaconda environment. The ISO itself
+# embeds only the BaseOS payload; optional developer packages download later
+# on the installed target computer after explicit consent.
+label: "DEVCOREOS_INSTALLER"
+grub2:
+  entries:
+    - name: "Install DevCore OS"
+      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=DEVCOREOS_INSTALLER inst.graphical console=tty0 console=ttyS0,115200n8 rhgb quiet"
+      initrd: "/images/pxeboot/initrd.img"

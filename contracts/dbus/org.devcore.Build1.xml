@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.Build1">
+    <method name="StartBuild">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="step_id" type="s" direction="in"/>
+      <arg name="adapter" type="s" direction="in"/>
+      <arg name="working_directory" type="s" direction="in"/>
+      <arg name="accepted_job_id" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

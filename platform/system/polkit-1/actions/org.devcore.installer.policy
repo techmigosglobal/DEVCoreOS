@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/polkit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>DevCore</vendor>
+  <vendor_url>https://github.com/techmigosglobal/DEVCoreOS</vendor_url>
+  <action id="org.devcore.installer.manage">
+    <description>Install DevCore OS to a local disk</description>
+    <message>Authentication is required to make destructive installation changes.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

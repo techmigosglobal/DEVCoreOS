@@ -1,0 +1,22 @@
+[package]
+name = "devcore-greeter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-core = { path = "../../../shared/core" }
+devcore-session = { path = "../../desktop/session" }
+slint = { version = "=1.10.0", default-features = false, features = [
+    "accessibility",
+    "backend-winit-wayland",
+    "compat-1-2",
+    "renderer-winit-software",
+    "software-renderer-systemfonts",
+    "std",
+] }
+zbus = { version = "=4.4.0", default-features = true, features = ["option-as-array"] }
+
+[lints]
+workspace = true

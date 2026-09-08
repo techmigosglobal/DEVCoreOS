@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.FirstBoot1">
+    <method name="Status">
+      <arg name="required" type="b" direction="out"/>
+      <arg name="suggested_profile" type="s" direction="out"/>
+    </method>
+    <method name="Apply">
+      <arg name="language" type="s" direction="in"/>
+      <arg name="keyboard" type="s" direction="in"/>
+      <arg name="timezone" type="s" direction="in"/>
+      <arg name="username" type="s" direction="in"/>
+      <arg name="hostname" type="s" direction="in"/>
+      <arg name="profile" type="s" direction="in"/>
+      <arg name="password" type="s" direction="in"/>
+      <annotation name="org.devcore.SecretHandling" value="transient-only; never stored, logged, or placed in argv"/>
+    </method>
+  </interface>
+</node>

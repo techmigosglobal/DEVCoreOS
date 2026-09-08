@@ -1,0 +1,15 @@
+[package]
+name = "devcore-build"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-core = { path = "../../../shared/core" }
+devcore-environment = { path = "../environment" }
+devcore-execution = { path = "../../../shared/execution" }
+sha2 = "=0.10.9"
+
+[lints]
+workspace = true

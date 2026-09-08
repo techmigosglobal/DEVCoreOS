@@ -1,0 +1,54 @@
+name: Publish release image
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.90.0
+      - name: Validate release source
+        run: cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
+      - name: Select approved channel
+        id: channel
+        shell: bash
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            *-alpha|*-alpha.*) echo "name=alpha" >> "$GITHUB_OUTPUT" ;;
+            *-beta|*-beta.*) echo "name=beta" >> "$GITHUB_OUTPUT" ;;
+            v[0-9]*) echo "name=stable" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Release tag must be v<version>, v<version>-beta, or v<version>-alpha" >&2; exit 1 ;;
+          esac
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish immutable BaseOS
+        env:
+          DEVCORE_IMAGE_REF: ghcr.io/techmigosglobal/devcoreos:${{ steps.channel.outputs.name }}
+        run: |
+          platform/image/build-oci.sh
+          podman push "$DEVCORE_IMAGE_REF"
+          digest="$(podman image inspect "$DEVCORE_IMAGE_REF" --format '{{index .RepoDigests 0}}')"
+          test -n "$digest"
+          mkdir -p release-metadata
+          printf '{"channel":"%s","image":"%s","digest":"%s","tag":"%s"}\n' \
+            "${{ steps.channel.outputs.name }}" "$DEVCORE_IMAGE_REF" "$digest" "$GITHUB_REF_NAME" \
+            > release-metadata/${{ steps.channel.outputs.name }}.json
+      - name: Upload immutable release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: devcoreos-release-metadata-${{ steps.channel.outputs.name }}
+          path: release-metadata/*.json

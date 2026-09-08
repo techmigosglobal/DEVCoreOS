@@ -1,0 +1,6 @@
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.devcore.installer.manage" &&
+        subject.active && subject.local && subject.isInGroup("devcore-live")) {
+        return polkit.Result.YES;
+    }
+});

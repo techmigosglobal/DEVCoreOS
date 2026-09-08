@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.devcore.Work1
+Exec=/usr/libexec/devcore/devcore-workd

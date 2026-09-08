@@ -1,0 +1,10 @@
+# Immutable x86-64 base references resolved from the Fedora 43 manifest on
+# 2026-09-02 after the previous digest was no longer published by Quay.
+# Update only through a reviewed supply-chain change with fresh VM evidence.
+
+base_image = "quay.io/fedora/fedora-bootc@sha256:892898170e5a78c2d32ca4774c72f1ceef208ea7305e2a7bf3675ccc9b8569bf"
+base_tag = "43"
+
+# The Fedora bootc base supplies the target SELinux policy and the bootc
+# installation tools needed by the unified Image Builder build root.
+build_root_image = "quay.io/fedora/fedora-bootc@sha256:892898170e5a78c2d32ca4774c72f1ceef208ea7305e2a7bf3675ccc9b8569bf"

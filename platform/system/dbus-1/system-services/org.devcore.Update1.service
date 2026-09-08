@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.devcore.Update1
+Exec=/usr/libexec/devcore/devcore-updated
+User=root
+SystemdService=devcore-updated.service

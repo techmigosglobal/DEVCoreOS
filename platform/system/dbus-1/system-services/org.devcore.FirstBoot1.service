@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.devcore.FirstBoot1
+Exec=/usr/libexec/devcore/devcore-firstbootd
+User=root
+SystemdService=devcore-firstbootd.service

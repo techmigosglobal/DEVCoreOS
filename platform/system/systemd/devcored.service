@@ -1,0 +1,26 @@
+[Unit]
+Description=DevCore resource policy service
+Documentation=file:///usr/share/doc/devcore/ARCHITECTURE.md
+After=basic.target dbus.service
+Wants=dbus.service
+
+[Service]
+Type=simple
+User=devcore
+Group=devcore
+ExecStart=/usr/libexec/devcore/devcored --daemon
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

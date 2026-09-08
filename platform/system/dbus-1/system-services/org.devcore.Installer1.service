@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.devcore.Installer1
+Exec=/usr/libexec/devcore/devcore-installerd --config /usr/share/devcore-installer/config.json
+User=root
+SystemdService=devcore-installer.service

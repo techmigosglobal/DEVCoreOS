@@ -1,0 +1,24 @@
+[Unit]
+Description=DevCore first-boot setup service
+Documentation=file:///usr/share/doc/devcore/SESSION_INTEGRATION.md
+After=basic.target dbus.service
+Wants=dbus.service
+ConditionPathExists=!/var/lib/devcore/first-boot.conf
+
+[Service]
+Type=dbus
+BusName=org.devcore.FirstBoot1
+User=root
+Group=root
+ExecStart=/usr/libexec/devcore/devcore-firstbootd
+Restart=no
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+ReadWritePaths=/etc /home /var/lib/devcore
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native

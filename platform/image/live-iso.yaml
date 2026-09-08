@@ -1,0 +1,11 @@
+# This is image-builder's canonical ISO configuration. The native installer
+# supports x86-64 UEFI only; the build script rejects other builder hosts.
+label: DEVCOREOS_LIVE
+grub2:
+  entries:
+    - name: Try DevCore OS
+      linux: /images/pxeboot/vmlinuz rd.live.image devcore.live=1 devcore.installer=manual quiet
+      initrd: /images/pxeboot/initrd.img
+    - name: Install DevCore OS
+      linux: /images/pxeboot/vmlinuz rd.live.image devcore.live=1 devcore.installer=auto quiet
+      initrd: /images/pxeboot/initrd.img

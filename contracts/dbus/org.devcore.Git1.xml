@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.Git1">
+    <method name="StartStatus">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="working_directory" type="s" direction="in"/>
+      <arg name="accepted_job_id" type="s" direction="out"/>
+    </method>
+    <method name="StartDiff">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="working_directory" type="s" direction="in"/>
+      <arg name="accepted_job_id" type="s" direction="out"/>
+    </method>
+    <method name="StartHistory">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="working_directory" type="s" direction="in"/>
+      <arg name="accepted_job_id" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

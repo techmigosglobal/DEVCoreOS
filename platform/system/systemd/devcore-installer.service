@@ -1,0 +1,34 @@
+[Unit]
+Description=DevCore native installer service
+Documentation=file:///usr/share/devcore-installer/config.json
+After=dbus.service systemd-udev-settle.service
+Wants=dbus.service systemd-udev-settle.service
+ConditionPathExists=/run/udev/control
+
+[Service]
+Type=dbus
+BusName=org.devcore.Installer1
+User=root
+Group=root
+ExecStart=/usr/libexec/devcore/devcore-installerd --config /usr/share/devcore-installer/config.json
+Restart=no
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=no
+PrivateNetwork=no
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/devcore-installer /var/log/devcore-installer /run
+StateDirectory=devcore-installer
+LogsDirectory=devcore-installer
+RuntimeDirectory=devcore-installer
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+# The live ISO never starts the legacy graphical installer. Both boot entries enter the same
+# disposable DevCore Wayland desktop; the Install entry asks the shell to open
+# the native Installer window after its session is available.
+[terminal]
+vt = 1
+
+[initial_session]
+command = "/usr/bin/devcore-compositor --backend drm --shell /usr/bin/devcore-shell"
+user = "devcore-live"

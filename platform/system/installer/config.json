@@ -1,0 +1,20 @@
+{
+  "architecture": "x86_64-uefi",
+  "minimum_disk_bytes": 34359738368,
+  "partition_layout": {
+    "partition_table": "gpt",
+    "efi_system_partition_bytes": 1073741824,
+    "efi_filesystem": "vfat",
+    "root_filesystem": "ext4"
+  },
+  "disk_id_prefix": "/dev/disk/by-id/",
+  "rejected_disk_classes": ["installer-media", "loop", "removable", "running-root"],
+  "destructive_confirmation": "ERASE <disk suffix>",
+  "cancellation": "before-destructive-storage-only",
+  "payload": {
+    "archive": "/usr/share/devcore-installer/payload/devcore-baseos.oci.tar",
+    "sha256_manifest": "/usr/share/devcore-installer/payload/SHA256SUMS",
+    "load_command": "podman load --input",
+    "deploy_command": "bootc install to-filesystem"
+  }
+}

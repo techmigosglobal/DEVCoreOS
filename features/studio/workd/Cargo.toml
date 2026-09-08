@@ -1,0 +1,18 @@
+[package]
+name = "devcore-workd"
+description = "DevCore user-session Environment, Build, Test, and job service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-build = { path = "../build" }
+devcore-core = { path = "../../../shared/core" }
+devcore-environment = { path = "../environment" }
+devcore-execution = { path = "../../../shared/execution" }
+devcore-test = { path = "../test" }
+zbus = { version = "=4.4.0", default-features = true, features = ["option-as-array"] }
+
+[lints]
+workspace = true

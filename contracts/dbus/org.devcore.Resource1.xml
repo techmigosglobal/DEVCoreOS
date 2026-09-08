@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.Resource1">
+    <property name="Profile" type="s" access="read"/>
+    <property name="LogicalCpus" type="q" access="read"/>
+    <property name="MemoryTotalKiB" type="t" access="read"/>
+    <property name="MemoryAvailableKiB" type="at" access="read"/>
+    <property name="CpuPressureAvg10MilliPercent" type="au" access="read"/>
+    <property name="MemoryPressureAvg10MilliPercent" type="au" access="read"/>
+    <property name="IoPressureAvg10MilliPercent" type="au" access="read"/>
+    <property name="BatteryPresent" type="b" access="read"/>
+    <property name="BatteryPercent" type="aq" access="read"/>
+    <property name="AcOnline" type="ab" access="read"/>
+    <property name="BuildWorkers" type="q" access="read"/>
+    <property name="EmulatorDeferred" type="b" access="read"/>
+    <method name="SnapshotJson">
+      <arg name="snapshot" type="s" direction="out"/>
+    </method>
+    <method name="Refresh">
+      <arg name="snapshot" type="s" direction="out"/>
+    </method>
+    <signal name="SnapshotChanged">
+      <arg name="snapshot" type="s"/>
+    </signal>
+  </interface>
+</node>

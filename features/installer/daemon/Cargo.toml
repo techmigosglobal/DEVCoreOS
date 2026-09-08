@@ -1,0 +1,16 @@
+[package]
+name = "devcore-installerd"
+description = "Root-owned, constrained deployment service for the DevCore live installer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-installer-domain = { path = "../domain" }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+zbus = { version = "=4.4.0", default-features = true, features = ["option-as-array"] }
+
+[lints]
+workspace = true

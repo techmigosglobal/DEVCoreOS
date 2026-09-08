@@ -1,0 +1,13 @@
+[package]
+name = "devcore-installer-domain"
+description = "Validated domain model for DevCore's destructive live installer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-core = { path = "../../../shared/core" }
+
+[lints]
+workspace = true

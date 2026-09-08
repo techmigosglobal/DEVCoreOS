@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.Job1">
+    <method name="Status">
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="id" type="s" direction="out"/>
+      <arg name="lifecycle" type="s" direction="out"/>
+      <arg name="exit_code" type="ai" direction="out"/>
+      <arg name="output_truncated" type="b" direction="out"/>
+      <arg name="duration_millis" type="t" direction="out"/>
+      <arg name="error" type="as" direction="out"/>
+    </method>
+    <method name="Cancel">
+      <arg name="job_id" type="s" direction="in"/>
+    </method>
+    <method name="ReadLog">
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="stream" type="s" direction="in"/>
+      <arg name="offset" type="t" direction="in"/>
+      <arg name="max_bytes" type="t" direction="in"/>
+      <arg name="bytes" type="ay" direction="out"/>
+      <arg name="end_of_file" type="b" direction="out"/>
+      <arg name="total_bytes" type="t" direction="out"/>
+    </method>
+  </interface>
+</node>

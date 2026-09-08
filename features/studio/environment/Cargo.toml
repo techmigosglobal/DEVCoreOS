@@ -1,0 +1,12 @@
+[package]
+name = "devcore-environment"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-execution = { path = "../../../shared/execution" }
+
+[lints]
+workspace = true

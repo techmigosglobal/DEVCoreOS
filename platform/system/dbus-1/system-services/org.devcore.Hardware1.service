@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.devcore.Hardware1
+Exec=/usr/libexec/devcore/devcore-hardwared --daemon
+User=devcore
+SystemdService=devcore-hardwared.service

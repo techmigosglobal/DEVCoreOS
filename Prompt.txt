@@ -1,0 +1,433 @@
+You are the principal systems engineer for the DevCore OS project.
+
+Your working directory contains the DevCore Alpha 0.2 source tree.
+
+The objective is to develop DevCore into a lightweight, secure, developer-focused Linux operating system that runs efficiently on low-end, medium-end and high-end x86-64 PCs.
+
+DevCore is NOT intended to be a Fedora desktop remix.
+
+Fedora/Linux may provide the hardware-enablement foundation such as the Linux kernel, firmware, Mesa, systemd, PAM, networking, audio infrastructure, storage infrastructure, virtualization, boot components and device drivers.
+
+The following major DevCore layers should be our own implementations wherever practical:
+
+1. DevCore Desktop / Shell
+2. DevCore Greeter and First-Boot Setup
+3. DevCore Resource Engine
+4. DevCore Environment Manager
+5. DevCore Build Engine
+6. DevCore Test Engine
+7. DevCore Studio IDE
+8. DevCore Language and compiler
+9. DevCore Hardware Manager
+10. DevCore Update and Release Management
+
+Do not attempt to rewrite the Linux kernel, GPU drivers, Wi-Fi drivers, USB stack, PAM authentication implementation, filesystems, KVM or other mature low-level hardware infrastructure unless explicitly instructed.
+
+PRIMARY ENGINEERING PRINCIPLE:
+
+DevCore itself must consume as little CPU, RAM, storage I/O and battery power as reasonably possible so that the developer's applications receive the majority of available hardware resources.
+
+All permanent background services must be justified.
+
+Prefer event-driven operation over polling.
+
+Prefer lazy initialization.
+
+Stop or unload unused services.
+
+Avoid Electron for core DevCore software.
+
+Use Rust for new core DevCore components unless there is a strong technical reason to use something else.
+
+Never store plaintext passwords or implement custom password hashing/authentication. Use PAM and systemd-logind for authentication/session integration.
+
+DISPLAY ARCHITECTURE:
+
+DevCore should be Wayland-native.
+
+The DevCore shell/compositor should own window management, workspaces, panel, launcher, notifications, lock-screen integration and development-centric desktop functionality.
+
+Maintain X11 compatibility using Xwayland where necessary.
+
+RESOURCE ENGINE:
+
+Implement a Rust service named devcored.
+
+It should eventually manage:
+
+* CPU priorities and cgroups
+* memory pressure
+* memory.low / memory.high / memory.max policies
+* PSI CPU/memory/I/O pressure events
+* compressed-memory/zram policies
+* Multi-Gen LRU awareness
+* build parallelism
+* emulator resource limits
+* background workload throttling/freezing
+* I/O priorities
+* battery/AC state
+* CPU temperature
+* CPU power/performance state
+* thermal-aware compilation
+* developer-interactive workload prioritization
+
+Do not optimize for maximum free RAM.
+
+Optimize for low user-visible memory pressure and smooth interactive performance.
+
+The IDE, terminal, compositor, unsaved work and debugger should receive stronger protection than restartable build workers, idle emulators, indexers and caches.
+
+HARDWARE PROFILES:
+
+DevCore must automatically adapt rather than ship separate low-end/high-end editions.
+
+At minimum test profiles representing:
+
+LOW:
+2 CPUs
+4 GB RAM
+
+BALANCED:
+4 CPUs
+8 GB RAM
+
+STANDARD:
+8 CPUs
+16 GB RAM
+
+WORKSTATION:
+16 CPUs
+64 GB RAM
+
+Do not hard-code assumptions solely from CPU count or RAM. Design the resource system so PSI, actual workload pressure and hardware capability can influence decisions dynamically.
+
+LOGIN SYSTEM:
+
+Create a DevCore-native graphical greeter eventually, but use PAM for authentication and systemd-logind/pam_systemd for session creation and seat/device lifecycle.
+
+The first-boot experience eventually needs:
+
+* language
+* keyboard
+* timezone
+* user creation
+* password creation
+* hostname
+* hardware analysis
+* development profile selection
+
+ENVIRONMENT MANAGER:
+
+Create DevCore environment-management architecture that isolates project toolchains.
+
+It should eventually support:
+
+* Python
+* Go
+* Rust
+* Node.js
+* Flutter
+* Android SDK
+* Java/Gradle
+* Qt/CMake
+
+Use Linux namespaces/OCI/container primitives rather than inventing low-level isolation.
+
+Toolchains should start lazily and unrelated SDKs/services should not run.
+
+BUILD ENGINE:
+
+Create a DevCore build orchestrator with adapters for existing build systems initially.
+
+The architecture must support:
+
+* dependency DAG
+* incremental execution
+* content-addressed cache
+* parallel workers
+* resource-aware worker count
+* local builds
+* remote builds
+* reproducible environments
+* artifact tracking
+
+Initial adapters may include Cargo, Go, CMake, Gradle, Flutter, Qt and npm/pnpm.
+
+Do not attempt to replace Gradle/Flutter/Cargo compilation immediately.
+
+TEST ENGINE:
+
+Create a unified DevCore test coordinator capable of eventually running:
+
+* static analysis
+* unit tests
+* integration tests
+* UI tests
+* API tests
+* database tests
+* Android device tests
+* emulator tests
+* performance tests
+* memory-pressure tests
+* security tests
+* regression tests
+
+Test execution must be resource-aware.
+
+On a low-end machine, expensive emulator workloads should be deferrable to a physical device or remote worker.
+
+DEVCORE STUDIO:
+
+Eventually create a lightweight native IDE.
+
+Initial scope only:
+
+* project explorer
+* native editor
+* terminal
+* LSP integration
+* Git
+* build/run/test controls
+* diagnostics
+* debugger integration
+* device panel
+* performance/resource panel
+
+Avoid unnecessary web-runtime dependencies and unnecessary permanent processes.
+
+DEVCORE LANGUAGE:
+
+Do not prioritize implementing the complete DevCore language until the base OS, resource engine, environment system, build system and test infrastructure are stable.
+
+When compiler development starts, target:
+
+* simple readable syntax
+* static typing
+* low-runtime overhead
+* fast incremental development compilation
+* clear diagnostics
+* DevCore IR
+* LSP support
+* native/AOT release builds
+
+SECURITY:
+
+Keep SELinux enforcing unless a temporary test explicitly requires otherwise.
+
+Use least privilege.
+
+Prefer rootless development environments.
+
+Preserve Secure Boot compatibility where practical.
+
+Do not disable kernel security features merely to make development easier.
+
+Do not embed passwords, API keys or signing keys in source images.
+
+Do not commit secrets.
+
+RELEASE MODEL:
+
+DevCore should ultimately use image-based releases and support:
+
+nightly
+alpha
+beta
+stable
+
+The release pipeline should become:
+
+source
+→ build DevCore bootable OCI image
+→ static analysis
+→ unit tests
+→ QCOW2 generation
+→ VM boot tests
+→ low-resource tests
+→ resource regression tests
+→ security tests
+→ installer ISO generation
+→ installer test
+→ physical hardware tests
+→ signing
+→ checksums
+→ release
+
+BUILD TOOLING:
+
+Do not create new code around deprecated bootc-image-builder interfaces.
+
+The standalone bootc-image-builder project has been superseded by the unified osbuild Image Builder.
+
+Prefer the current image-builder CLI and current bootc image types.
+
+During development, prefer QCOW2 builds for iteration.
+
+Generate installer ISO artifacts only after the corresponding bootable image passes VM tests.
+
+BASE OS INSTALLER MODEL:
+
+The build workstation produces a small, self-contained DevCore BaseOS ISO. It
+must never download, cache, or embed optional developer payloads merely to
+create an ISO. In particular, Chrome, Go, Python, Flutter, Android SDK, and
+Android Studio are not build-workstation deliverables and are not ISO payloads.
+
+The installed target PC owns optional software delivery. Its graphical
+installation journey is:
+
+1. boot the DevCore BaseOS ISO;
+2. install BaseOS to the selected target disk;
+3. complete language, keyboard, account, and hardware-profile setup;
+4. connect the target PC to Wi-Fi or wired Internet through NetworkManager;
+5. choose the desired developer packages, review their download and disk
+   requirements, and explicitly approve them; and
+6. download, verify, install, retry, and resume only those selected packages
+   on that target PC.
+
+The BaseOS installer must show offline status and permit the user to finish
+BaseOS installation without optional packages. Software installation can then
+resume from first boot after a network connection is available. Never place
+Wi-Fi passwords, package credentials, or selected user payloads in the ISO.
+
+WORK PROCEDURE:
+
+Before modifying anything:
+
+1. Inspect the entire repository tree.
+2. Read README files.
+3. Read all Containerfiles/Dockerfiles.
+4. Inspect build scripts.
+5. Inspect systemd services.
+6. Inspect Rust crates.
+7. Inspect packaging/image-builder configuration.
+8. Determine exactly what Alpha 0.2 currently implements.
+9. Do not assume features exist merely because directories are named after them.
+10. Record the current architecture.
+
+Create or update:
+
+docs/CURRENT_STATE.md
+docs/ARCHITECTURE.md
+docs/ROADMAP.md
+docs/RESOURCE_BUDGETS.md
+docs/SECURITY_MODEL.md
+docs/BUILD_AND_RELEASE.md
+
+Do not blindly implement every roadmap feature in one change.
+
+Work through milestones.
+
+FIRST MILESTONE:
+
+Make the existing DevCore Alpha 0.2 source reproducibly buildable.
+
+The required initial success criteria are:
+
+* bootable OCI image builds successfully
+* image can be converted into QCOW2
+* QCOW2 boots with UEFI/KVM
+* Linux kernel boots successfully
+* networking works
+* filesystem works
+* user authentication/session works or current limitations are documented
+* DevCore graphical shell starts if implemented
+* terminal launches
+* journal contains no unexplained critical boot failures
+* system shuts down/reboots cleanly
+
+SECOND MILESTONE:
+
+Establish resource measurements and budgets.
+
+Measure at minimum:
+
+* boot time
+* idle RAM
+* idle CPU
+* number of running processes
+* DevCore service RAM
+* compositor RAM
+* PSI statistics
+* storage footprint
+
+Create scripts under:
+
+tools/bench/
+
+to gather reproducible measurements.
+
+Never claim DevCore is faster or lighter without benchmark evidence.
+
+THIRD MILESTONE:
+
+Implement or improve the first useful devcored resource-engine functionality.
+
+Start conservatively with:
+
+* hardware detection
+* PSI event monitoring
+* workload classification
+* cgroup/slice creation
+* CPU weights
+* memory protection/limits
+* resource telemetry
+
+Do not immediately implement aggressive task killing or risky thermal controls.
+
+FOURTH MILESTONE:
+
+Develop DevCore login/session integration and first-boot flow.
+
+Use PAM/systemd-logind rather than custom authentication.
+
+FIFTH MILESTONE:
+
+Implement the initial environment manager.
+
+Begin with Rust, Go and Python environments before more complicated Android/Flutter environments.
+
+QUALITY RULES:
+
+Every change must:
+
+* compile
+* have tests where appropriate
+* avoid introducing unnecessary permanent daemons
+* avoid busy-loop polling
+* avoid unexplained unsafe Rust
+* avoid unnecessary dependencies
+* document architectural decisions
+* preserve rollback/build reproducibility
+* keep SELinux compatibility in mind
+* keep low-end hardware as a first-class target
+
+Do not hide build/test failures.
+
+If something cannot be implemented correctly yet, document it rather than implementing a fake placeholder that claims to work.
+
+When you encounter an existing implementation that conflicts with this architecture, first explain:
+
+* what currently exists
+* why it conflicts
+* proposed migration
+* compatibility risk
+
+before performing a destructive rewrite.
+
+For every completed milestone report:
+
+1. Files changed
+2. Architecture implemented
+3. Commands executed
+4. Tests executed
+5. Results
+6. Resource measurements
+7. Known limitations
+8. Security concerns
+9. Next highest-priority milestone
+
+Begin now by auditing the repository only.
+
+Do not perform a large rewrite in the first action.
+
+Inspect the source tree, identify the current Alpha 0.2 implementation and produce a concrete gap analysis against this specification.

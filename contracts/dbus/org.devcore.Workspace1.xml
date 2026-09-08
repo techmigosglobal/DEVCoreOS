@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.devcore.Workspace1">
+    <method name="List">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="directory" type="s" direction="in"/>
+      <arg name="entries" type="a(sbbt)" direction="out"/>
+    </method>
+    <method name="ReadText">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="path" type="s" direction="in"/>
+      <arg name="normalized_path" type="s" direction="out"/>
+      <arg name="contents" type="s" direction="out"/>
+    </method>
+    <method name="WriteText">
+      <arg name="environment" type="s" direction="in"/>
+      <arg name="path" type="s" direction="in"/>
+      <arg name="contents" type="s" direction="in"/>
+      <arg name="normalized_path" type="s" direction="out"/>
+      <arg name="bytes_written" type="t" direction="out"/>
+    </method>
+  </interface>
+</node>

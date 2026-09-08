@@ -1,0 +1,13 @@
+[package]
+name = "devcored"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-core = { path = "../../../shared/core" }
+zbus = { version = "=4.4.0", default-features = true, features = ["option-as-array"] }
+
+[lints]
+workspace = true

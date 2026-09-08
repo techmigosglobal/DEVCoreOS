@@ -1,0 +1,27 @@
+[Unit]
+Description=DevCore read-only Hardware Manager
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=dbus
+BusName=org.devcore.Hardware1
+ExecStart=/usr/libexec/devcore/devcore-hardwared --daemon
+User=devcore
+Group=devcore
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+ReadOnlyPaths=/proc /sys
+
+[Install]
+WantedBy=multi-user.target

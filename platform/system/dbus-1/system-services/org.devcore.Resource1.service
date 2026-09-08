@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.devcore.Resource1
+Exec=/usr/libexec/devcore/devcored --daemon
+User=devcore
+SystemdService=devcored.service

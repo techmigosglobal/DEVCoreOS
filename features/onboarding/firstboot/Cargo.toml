@@ -1,0 +1,13 @@
+[package]
+name = "devcore-firstboot"
+description = "Validated first-boot configuration and privileged setup boundary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+devcore-core = { path = "../../../shared/core" }
+
+[lints]
+workspace = true
