@@ -31,7 +31,12 @@ grep -Fq '"features/desktop/compositor"' "$repo_root/Cargo.toml"
 grep -Fq '"features/shell/app"' "$repo_root/Cargo.toml"
 grep -Fq '"features/studio/workd"' "$repo_root/Cargo.toml"
 grep -Fq '"shared/execution"' "$repo_root/Cargo.toml"
-grep -Fq 'FROM quay.io/fedora/fedora-bootc@sha256:' "$image_root/Containerfile"
+base_ref="$(sed -n 's/^base_image = "\(.*\)"$/\1/p' "$image_root/base-images.lock")"
+grep -Fqx "ARG DEVCORE_BASE_IMAGE=$base_ref" "$image_root/Containerfile" || {
+    printf 'error: BaseOS Containerfile differs from the locked Fedora input\n' >&2
+    exit 1
+}
+grep -Fq 'FROM ${DEVCORE_BASE_IMAGE}' "$image_root/Containerfile"
 grep -Fq 'COPY usr/bin/devcore-shell /usr/bin/devcore-shell' "$image_root/Containerfile"
 grep -Fq 'COPY usr/bin/devcore-compositor /usr/bin/devcore-compositor' "$image_root/Containerfile"
 grep -Fq 'systemctl enable devcored.service' "$image_root/Containerfile"

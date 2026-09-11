@@ -56,6 +56,7 @@ struct ServiceState {
     job: InstallJob,
     job_path: OwnedObjectPath,
     next_job: u32,
+    worker_active: bool,
 }
 
 impl ServiceState {
@@ -67,6 +68,7 @@ impl ServiceState {
             job_path: OwnedObjectPath::try_from("/org/devcore/Installer/job/0")
                 .expect("constant object path"),
             next_job: 1,
+            worker_active: false,
         }
     }
 }
@@ -84,6 +86,11 @@ impl InstallerApi {
 
     fn preflight(&self, disk_id: String) -> fdo::Result<(String, Dictionary)> {
         let mut state = self.state.lock().map_err(poisoned)?;
+        if state.worker_active {
+            return Err(fdo::Error::Failed(
+                "installer is already running".to_owned(),
+            ));
+        }
         let disk = state.inventory.resolve_disk(&disk_id).map_err(invalid)?;
         match disk.eligibility() {
             DiskEligibility::Eligible => {}
@@ -108,10 +115,12 @@ impl InstallerApi {
         let password = read_password(password_fd).map_err(invalid)?;
         let (request, job_path) = {
             let mut state = self.state.lock().map_err(poisoned)?;
-            if !matches!(
-                state.job.state(),
-                InstallerState::Ready | InstallerState::Cancelled | InstallerState::Failed
-            ) {
+            if state.worker_active
+                || !matches!(
+                    state.job.state(),
+                    InstallerState::Ready | InstallerState::Cancelled | InstallerState::Failed
+                )
+            {
                 return Err(fdo::Error::Failed(
                     "installer is already running".to_owned(),
                 ));
@@ -132,6 +141,7 @@ impl InstallerApi {
                 .next_job
                 .checked_add(1)
                 .ok_or_else(|| fdo::Error::Failed("installer job counter exhausted".to_owned()))?;
+            state.worker_active = true;
             (request, state.job_path.clone())
         };
 
@@ -142,6 +152,10 @@ impl InstallerApi {
             .name("devcore-installer".to_owned())
             .spawn(move || run_install_worker(state, request, password, context, emitted_path))
             .map_err(|error| {
+                if let Ok(mut state) = self.state.lock() {
+                    state.worker_active = false;
+                    state.job.fail("cannot start installer worker");
+                }
                 fdo::Error::Failed(format!("cannot start installer worker: {error}"))
             })?;
         Ok(job_path)
@@ -226,6 +240,7 @@ fn run_install_worker(
     context: SignalContext<'static>,
     job_path: OwnedObjectPath,
 ) {
+    let mut storage_started = false;
     let result = (|| -> Result<(), InstallerError> {
         emit_progress(
             &context,
@@ -234,10 +249,12 @@ fn run_install_worker(
             5,
             "Verifying embedded BaseOS payload",
         )?;
-        run_checked("sha256sum", ["--strict", "--check", PAYLOAD_SUMS])?;
+        verify_payload(Path::new(PAYLOAD_SUMS))?;
         run_checked("podman", ["load", "--input", PAYLOAD_ARCHIVE])?;
         let image = read_payload_reference()?;
+        let local_image = resolve_local_payload(&image)?;
         revalidate_and_transition(&state, &request.disk_id, InstallerState::Destructive)?;
+        storage_started = true;
         emit_progress(
             &context,
             &job_path,
@@ -254,7 +271,7 @@ fn run_install_worker(
             45,
             "Deploying DevCore BaseOS from local media",
         )?;
-        deploy_payload(&image, &partitions.root_uuid)?;
+        deploy_payload(&local_image, &image, &partitions.root_uuid)?;
         transition_configuration(&state)?;
         emit_progress(
             &context,
@@ -272,7 +289,7 @@ fn run_install_worker(
             94,
             "Finalizing the boot target",
         )?;
-        finalize_target(&image)?;
+        finalize_target(&local_image)?;
         unmount_target()?;
         transition_complete(&state)?;
         emit_progress(
@@ -296,11 +313,29 @@ fn run_install_worker(
             ));
         }
         Err(error) => {
-            let diagnostic = sanitize_diagnostic(&error.to_string());
+            let cancelled = state
+                .lock()
+                .is_ok_and(|locked| locked.job.state() == InstallerState::Cancelled);
+            if cancelled {
+                if let Ok(mut locked) = state.lock() {
+                    locked.worker_active = false;
+                }
+                return;
+            }
+            let cleanup = if storage_started {
+                unmount_target()
+            } else {
+                Ok(())
+            };
+            let diagnostic = match cleanup {
+                Ok(()) => sanitize_diagnostic(&error.to_string()),
+                Err(cleanup) => {
+                    sanitize_diagnostic(&format!("{error}; target cleanup failed: {cleanup}"))
+                }
+            };
             if let Ok(mut locked) = state.lock() {
                 locked.job.fail(&diagnostic);
             }
-            let _ = unmount_target();
             let _ = zbus::block_on(InstallerApi::state_changed(
                 &context,
                 &job_path,
@@ -309,6 +344,9 @@ fn run_install_worker(
                 &diagnostic,
             ));
         }
+    }
+    if let Ok(mut locked) = state.lock() {
+        locked.worker_active = false;
     }
 }
 
@@ -522,9 +560,10 @@ fn prepare_target(disk_id: &str) -> Result<TargetPartitions, InstallerError> {
     let (esp, root) = partition_paths(&disk.device);
     run_checked("mkfs.fat", ["-F", "32", esp.as_str()])?;
     run_checked("mkfs.ext4", ["-F", root.as_str()])?;
-    fs::create_dir_all(format!("{TARGET_ROOT}/boot/efi"))
-        .map_err(io_error("create target mount path"))?;
+    fs::create_dir_all(TARGET_ROOT).map_err(io_error("create target mount path"))?;
     run_checked("mount", [root.as_str(), TARGET_ROOT])?;
+    fs::create_dir_all(format!("{TARGET_ROOT}/boot/efi"))
+        .map_err(io_error("create target EFI mount path"))?;
     run_checked("mount", [esp.as_str(), &format!("{TARGET_ROOT}/boot/efi")])?;
     let root_uuid = String::from_utf8(
         run_output("blkid", ["-s", "UUID", "-o", "value", root.as_str()])?.stdout,
@@ -556,13 +595,16 @@ fn partition_paths(device: &str) -> (String, String) {
     )
 }
 
-fn deploy_payload(image: &str, root_uuid: &str) -> Result<(), InstallerError> {
+fn deploy_payload(local_image: &str, image: &str, root_uuid: &str) -> Result<(), InstallerError> {
     let root_spec = format!("UUID={root_uuid}");
     run_checked(
         "podman",
         [
             "run",
             "--rm",
+            "--pull=never",
+            "--network=none",
+            "--cgroups=disabled",
             "--privileged",
             "--pid=host",
             "--ipc=host",
@@ -573,11 +615,14 @@ fn deploy_payload(image: &str, root_uuid: &str) -> Result<(), InstallerError> {
             "-v",
             "/var/lib/containers:/var/lib/containers",
             "-v",
-            &format!("{TARGET_ROOT}:/target:rw"),
-            image,
+            &format!("{TARGET_ROOT}:/target:rw,rbind,rprivate"),
+            local_image,
             "bootc",
             "install",
             "to-filesystem",
+            "--skip-finalize",
+            "--stateroot",
+            "default",
             "--root-mount-spec",
             root_spec.as_str(),
             "--target-imgref",
@@ -599,16 +644,38 @@ fn configure_target(settings: &InstallSettings, password: &mut [u8]) -> Result<(
     .map_err(|_| InstallerError::Inventory("target deployment path is not UTF-8".to_owned()))?
     .trim()
     .to_owned();
-    if !deployment.starts_with(TARGET_ROOT) || deployment.contains("..") {
+    if !Path::new(&deployment)
+        .starts_with(Path::new(TARGET_ROOT).join("ostree/deploy/default/deploy"))
+        || deployment.contains("..")
+    {
         return Err(InstallerError::Inventory(
             "invalid target deployment path".to_owned(),
         ));
     }
+    let deployment_var = format!("{deployment}/var");
+    let persistent_var = format!("{TARGET_ROOT}/ostree/deploy/default/var");
+    run_checked(
+        "mount",
+        ["--bind", persistent_var.as_str(), deployment_var.as_str()],
+    )?;
+    let configured = configure_deployment(settings, password, &deployment);
+    let unmounted = run_checked("umount", [deployment_var.as_str()]);
+    configured?;
+    unmounted?;
+    write_firstboot_marker(settings)
+}
+
+fn configure_deployment(
+    settings: &InstallSettings,
+    password: &mut [u8],
+    deployment: &str,
+) -> Result<(), InstallerError> {
     run_checked(
         "systemd-firstboot",
         [
+            "--force",
             "--root",
-            deployment.as_str(),
+            deployment,
             "--locale",
             settings.locale.as_str(),
             "--keymap",
@@ -623,7 +690,7 @@ fn configure_target(settings: &InstallSettings, password: &mut [u8]) -> Result<(
         "useradd",
         [
             "--root",
-            deployment.as_str(),
+            deployment,
             "--create-home",
             "--groups",
             "wheel",
@@ -635,14 +702,13 @@ fn configure_target(settings: &InstallSettings, password: &mut [u8]) -> Result<(
     account.push(b':');
     account.extend_from_slice(password);
     account.push(b'\n');
-    let password_result = run_with_stdin("chpasswd", ["--root", deployment.as_str()], &account);
+    let password_result = run_with_stdin("chpasswd", ["--root", deployment], &account);
     account.fill(0);
-    password_result?;
-    write_firstboot_marker(settings)
+    password_result
 }
 
 fn write_firstboot_marker(settings: &InstallSettings) -> Result<(), InstallerError> {
-    let directory = Path::new(TARGET_ROOT).join("var/lib/devcore");
+    let directory = Path::new(TARGET_ROOT).join("ostree/deploy/default/var/lib/devcore");
     fs::create_dir_all(&directory).map_err(io_error("create first-boot state"))?;
     let path = directory.join("first-boot.conf");
     let temporary = directory.join(".first-boot.conf.installer.tmp");
@@ -675,9 +741,12 @@ fn finalize_target(image: &str) -> Result<(), InstallerError> {
         [
             "run",
             "--rm",
+            "--pull=never",
+            "--network=none",
+            "--cgroups=disabled",
             "--privileged",
             "-v",
-            &format!("{TARGET_ROOT}:/target:rw"),
+            &format!("{TARGET_ROOT}:/target:rw,rbind,rprivate"),
             image,
             "bootc",
             "install",
@@ -689,18 +758,76 @@ fn finalize_target(image: &str) -> Result<(), InstallerError> {
 }
 
 fn unmount_target() -> Result<(), InstallerError> {
-    let efi = format!("{TARGET_ROOT}/boot/efi");
-    let _ = run_checked("umount", [efi.as_str()]);
-    let _ = run_checked("umount", [TARGET_ROOT]);
+    unmount_target_with(|program, arguments| run_checked(program, arguments.iter().copied()))
+}
+
+fn unmount_target_with(
+    mut run: impl FnMut(&str, &[&str]) -> Result<(), InstallerError>,
+) -> Result<(), InstallerError> {
+    // Recursive unmount handles partial setup and postprocessing bind mounts.
+    // A busy target must never be reported as successfully finalized.
+    run("umount", &["--recursive", TARGET_ROOT])
+}
+
+fn verify_payload(manifest: &Path) -> Result<(), InstallerError> {
+    let directory = manifest
+        .parent()
+        .ok_or_else(|| InstallerError::Inventory("payload manifest has no directory".to_owned()))?;
+    let output =
+        Command::new("sha256sum")
+            .args(["--strict", "--check"])
+            .arg(manifest.file_name().ok_or_else(|| {
+                InstallerError::Inventory("invalid payload manifest path".to_owned())
+            })?)
+            .current_dir(directory)
+            .env_clear()
+            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .output()
+            .map_err(io_error("verify payload checksum"))?;
+    if !output.status.success() {
+        return Err(InstallerError::Inventory(
+            "embedded payload checksum verification failed".to_owned(),
+        ));
+    }
     Ok(())
+}
+
+fn resolve_local_payload(reference: &str) -> Result<String, InstallerError> {
+    let digest = reference
+        .split_once('@')
+        .ok_or_else(|| InstallerError::Inventory("payload digest is missing".to_owned()))?
+        .1;
+    let images = run_output(
+        "podman",
+        ["image", "ls", "--no-trunc", "--format", "{{.ID}}"],
+    )?;
+    for id in String::from_utf8_lossy(&images.stdout).lines() {
+        let inspected = run_output(
+            "podman",
+            ["image", "inspect", "--format", "{{.Digest}}", id],
+        )?;
+        if String::from_utf8_lossy(&inspected.stdout).trim() == digest {
+            return Ok(id.to_owned());
+        }
+    }
+    Err(InstallerError::Inventory(
+        "loaded payload does not match the embedded image digest".to_owned(),
+    ))
 }
 
 fn read_payload_reference() -> Result<String, InstallerError> {
     let reference =
         fs::read_to_string(PAYLOAD_REFERENCE).map_err(io_error("read payload image reference"))?;
-    let reference = reference.trim();
+    validate_payload_reference(reference.trim())
+}
+
+fn validate_payload_reference(reference: &str) -> Result<String, InstallerError> {
     if !reference.starts_with("ghcr.io/techmigosglobal/devcoreos@sha256:")
         || reference.len() != "ghcr.io/techmigosglobal/devcoreos@sha256:".len() + 64
+        || !reference
+            .rsplit(':')
+            .next()
+            .is_some_and(|digest| digest.bytes().all(|byte| byte.is_ascii_hexdigit()))
     {
         return Err(InstallerError::Inventory(
             "embedded payload image reference is not a DevCore GHCR digest".to_owned(),
@@ -807,28 +934,27 @@ fn run_checked<'a>(
     program: &str,
     arguments: impl IntoIterator<Item = &'a str>,
 ) -> Result<(), InstallerError> {
-    let output = run_output(program, arguments)?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(InstallerError::Inventory(format!(
-            "{program} failed with {}: {}",
-            output.status,
-            bounded_stderr(&output.stderr)
-        )))
-    }
+    run_output(program, arguments).map(|_| ())
 }
 
 fn run_output<'a>(
     program: &str,
     arguments: impl IntoIterator<Item = &'a str>,
 ) -> Result<std::process::Output, InstallerError> {
-    Command::new(program)
+    let output = Command::new(program)
         .args(arguments)
         .env_clear()
         .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
         .output()
-        .map_err(|error| InstallerError::Inventory(format!("cannot start {program}: {error}")))
+        .map_err(|error| InstallerError::Inventory(format!("cannot start {program}: {error}")))?;
+    if !output.status.success() {
+        return Err(InstallerError::Inventory(format!(
+            "{program} failed with {}: {}",
+            output.status,
+            bounded_stderr(&output.stderr)
+        )));
+    }
+    Ok(output)
 }
 
 fn run_with_stdin<'a>(
@@ -942,11 +1068,63 @@ mod tests {
 
     #[test]
     fn payload_reference_requires_a_devcore_immutable_digest() {
-        assert!("ghcr.io/techmigosglobal/devcoreos@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".starts_with("ghcr.io/techmigosglobal/devcoreos@sha256:"));
-        assert!(
-            !"registry:localhost/devcore-os"
-                .starts_with("ghcr.io/techmigosglobal/devcoreos@sha256:")
+        let reference = format!(
+            "ghcr.io/techmigosglobal/devcoreos@sha256:{}",
+            "a".repeat(64)
         );
+        assert_eq!(validate_payload_reference(&reference).unwrap(), reference);
+        for invalid in [
+            "registry:localhost/devcore-os".to_owned(),
+            "ghcr.io/techmigosglobal/devcoreos:alpha".to_owned(),
+            format!(
+                "ghcr.io/techmigosglobal/devcoreos@sha256:{}",
+                "z".repeat(64)
+            ),
+        ] {
+            assert!(validate_payload_reference(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn checksum_resolves_payload_relative_to_manifest_and_rejects_corruption() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            env::temp_dir().join(format!("devcore-checksum-{}-{unique}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let archive = directory.join("devcore-baseos.oci.tar");
+        let manifest = directory.join("SHA256SUMS");
+        fs::write(&archive, b"abc").unwrap();
+        fs::write(&manifest, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  devcore-baseos.oci.tar\n").unwrap();
+        assert!(verify_payload(&manifest).is_ok());
+        fs::write(&archive, b"corrupt").unwrap();
+        assert!(verify_payload(&manifest).is_err());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn busy_target_cannot_be_reported_as_unmounted() {
+        let result =
+            unmount_target_with(|_, _| Err(InstallerError::Inventory("target is busy".to_owned())));
+        assert!(result.unwrap_err().to_string().contains("target is busy"));
+    }
+
+    #[test]
+    fn preflight_cannot_replace_a_worker_even_after_cancellation() {
+        let mut state = ServiceState::new();
+        state.job.ready().unwrap();
+        state.job.preparing().unwrap();
+        state.job.cancel().unwrap();
+        state.worker_active = true;
+        let api = InstallerApi {
+            state: Arc::new(Mutex::new(state)),
+        };
+        assert!(matches!(
+            api.preflight("/dev/disk/by-id/fake".to_owned()),
+            Err(fdo::Error::Failed(_))
+        ));
     }
 
     #[test]

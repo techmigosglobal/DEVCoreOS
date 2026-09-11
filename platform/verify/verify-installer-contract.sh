@@ -19,6 +19,7 @@ activation="$system_root/dbus-1/system-services/org.devcore.Installer1.service"
 polkit_action="$system_root/polkit-1/actions/org.devcore.installer.policy"
 polkit_rule="$system_root/polkit-1/rules.d/org.devcore.installer.rules"
 installer_config="$system_root/installer/config.json"
+installer_containerfile="$containerfile"
 
 for file in "$contract" "$containerfile" "$boot_config" "$oci_script" "$iso_script" \
     "$service" "$live_greetd" "$live_tmpfiles" "$policy" "$activation" "$polkit_action" "$polkit_rule" \
@@ -35,8 +36,13 @@ done
 
 # Limit the scan to replacement assets, so legacy files can coexist during the
 # migration without letting them become inputs to the new installer.
-if grep -R -Eqi '(anaconda|kickstart)' "$image_root" "$system_root"; then
+if grep -R -Eqi '(anaconda|kickstart)' "$image_root" "$system_root" \
+    --exclude='Installer.Containerfile'; then
     printf 'error: replacement installer assets must not depend on the legacy installer stack\n' >&2
+    exit 1
+fi
+if grep -Eqi '(FROM .*anaconda|dnf.*anaconda|anaconda\.target|kickstart)' "$containerfile"; then
+    printf 'error: installer image must not use the legacy installer stack\n' >&2
     exit 1
 fi
 forbidden_ref="$(printf '%s%s' 'registry:' 'localhost')"
@@ -51,12 +57,23 @@ grep -Fq 'name: Install DevCore OS' "$boot_config"
 grep -Fq 'devcore.live=1' "$boot_config"
 grep -Fq 'devcore.installer=manual' "$boot_config"
 grep -Fq 'devcore.installer=auto' "$boot_config"
+[[ "$(grep -c 'root=live:CDLABEL=DEVCOREOS_LIVE' "$boot_config")" -eq 2 ]]
+[[ "$(grep -c 'systemd.unit=graphical.target' "$boot_config")" -eq 2 ]]
+grep -Fq 'rd.live.overlay.overlayfs=1' "$boot_config"
+grep -Fq 'dmsquash-live' "$containerfile"
+grep -Fqx '[default_session]' "$live_greetd"
 grep -Fq 'user = "devcore-live"' "$live_greetd"
 grep -Fq 'devcore-compositor --backend drm --shell /usr/bin/devcore-shell' "$live_greetd"
 grep -Fq 'devcore.installer=auto' "$shell_app"
 grep -Fq 'Command::new("/usr/bin/devcore-installer")' "$shell_app"
 
 grep -Fqx 'COPY usr/bin/devcore-installer /usr/bin/devcore-installer' "$containerfile"
+grep -Fq 'ARG DEVCORE_INSTALLER_BASE_IMAGE=' "$containerfile"
+grep -Fq 'FROM ${DEVCORE_INSTALLER_BASE_IMAGE}' "$containerfile"
+grep -Fq 'ARG DEVCORE_SKIP_INSTALLER_PACKAGES=false' "$containerfile"
+grep -Fq 'rm -rf /usr/share/anaconda /usr/libexec/anaconda' "$containerfile"
+grep -Fq 'graphical.target /etc/systemd/system/default.target' "$containerfile"
+grep -Fq 'multi-user.target.wants/greetd.service' "$containerfile"
 grep -Fqx 'COPY usr/libexec/devcore/devcore-installerd /usr/libexec/devcore/devcore-installerd' "$containerfile"
 grep -Fq 'COPY usr/share/devcore-installer/payload/devcore-baseos.oci.tar' "$containerfile"
 grep -Fq 'COPY usr/share/devcore-installer/payload/SHA256SUMS' "$containerfile"
@@ -64,6 +81,8 @@ grep -Fq 'COPY usr/lib/image-builder/bootc/iso.yaml /usr/lib/image-builder/bootc
 grep -Fq 'sha256sum --strict --check SHA256SUMS' "$containerfile"
 grep -Fq 'COPY usr/lib/systemd/system/devcore-installer.service' "$containerfile"
 grep -Fq 'COPY etc/greetd/config.toml /etc/greetd/config.toml' "$containerfile"
+grep -Fq 'COPY etc/pam.d/greetd /etc/pam.d/greetd' "$containerfile"
+grep -Fq 'COPY etc/systemd/system/greetd.service.d/live.conf /etc/systemd/system/greetd.service.d/live.conf' "$containerfile"
 grep -Fq 'COPY usr/lib/tmpfiles.d/devcore-live.conf' "$containerfile"
 grep -Fq 'COPY usr/share/dbus-1/system.d/org.devcore.Installer1.conf' "$containerfile"
 grep -Fq 'COPY usr/share/polkit-1/actions/org.devcore.installer.policy' "$containerfile"
@@ -105,7 +124,8 @@ grep -Fq '"root_filesystem": "ext4"' "$installer_config"
 grep -Fq '"disk_id_prefix": "/dev/disk/by-id/"' "$installer_config"
 grep -Fq '"cancellation": "before-destructive-storage-only"' "$installer_config"
 grep -Fq 'save --format oci-archive' "$oci_script"
-grep -Fq 'sha256sum devcore-baseos.oci.tar > SHA256SUMS' "$oci_script"
+grep -Fq 'sha256sum devcore-baseos.oci.tar payload-image.ref payload-config.digest > SHA256SUMS' "$oci_script"
+grep -Fq 'payload-config.digest' "$installer_containerfile"
 grep -Fq 'podman load --input' "$installer_config"
 grep -Fq '"$(uname -m)" == "x86_64"' "$iso_script"
 grep -Fq 'OwnedFd::from' "$installer_app"

@@ -1,5 +1,7 @@
 # x86-64 Fedora bootc runtime pinned in platform/image/base-images.lock.
-FROM quay.io/fedora/fedora-bootc@sha256:892898170e5a78c2d32ca4774c72f1ceef208ea7305e2a7bf3675ccc9b8569bf
+ARG DEVCORE_BASE_IMAGE=quay.io/fedora/fedora-bootc@sha256:892898170e5a78c2d32ca4774c72f1ceef208ea7305e2a7bf3675ccc9b8569bf
+FROM ${DEVCORE_BASE_IMAGE}
+ARG DEVCORE_SKIP_RUNTIME_PACKAGES=false
 
 LABEL org.opencontainers.image.title="DevCore OS" \
       org.opencontainers.image.description="Developer-focused Fedora bootc image" \
@@ -33,7 +35,9 @@ COPY usr/share/dbus-1/services/org.devcore.Work1.service /usr/share/dbus-1/servi
 COPY usr/share/dbus-1/services/org.devcore.Provision1.service /usr/share/dbus-1/services/org.devcore.Provision1.service
 COPY etc/greetd/config.toml /etc/greetd/config.toml
 
-RUN dnf --assumeyes --setopt=install_weak_deps=False install \
+RUN if [[ "$DEVCORE_SKIP_RUNTIME_PACKAGES" != "true" ]]; then \
+        dnf --assumeyes --setopt=install_weak_deps=False --setopt=ip_resolve=4 \
+            --setopt=timeout=30 --setopt=retries=4 install \
         ca-certificates \
         flatpak \
         foot \
@@ -51,8 +55,11 @@ RUN dnf --assumeyes --setopt=install_weak_deps=False install \
         zram-generator-defaults \
         libxkbcommon \
         wireplumber \
-        xorg-x11-server-Xwayland \
-    && dnf clean all \
+        xorg-x11-server-Xwayland; \
+        dnf clean all; \
+    else \
+        echo "Using a prebuilt local BaseOS package layer"; \
+    fi \
     && chmod 0755 /usr/libexec/devcore/devcored \
     && chmod 0755 /usr/libexec/devcore/devcore-firstbootd \
     && chmod 0755 /usr/libexec/devcore/devcore-hardwared \

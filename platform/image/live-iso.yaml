@@ -4,8 +4,11 @@ label: DEVCOREOS_LIVE
 grub2:
   entries:
     - name: Try DevCore OS
-      linux: /images/pxeboot/vmlinuz rd.live.image devcore.live=1 devcore.installer=manual quiet
+      # The live root is ephemeral; permissive SELinux lets systemd relabel
+      # firmware/VM device nodes during initialization. Installed targets keep
+      # their normal enforcing policy.
+      linux: /images/pxeboot/vmlinuz root=live:CDLABEL=DEVCOREOS_LIVE rd.live.image rd.live.overlay.overlayfs=1 systemd.unit=graphical.target devcore.live=1 devcore.installer=manual enforcing=0 console=ttyS0 console=tty0
       initrd: /images/pxeboot/initrd.img
     - name: Install DevCore OS
-      linux: /images/pxeboot/vmlinuz rd.live.image devcore.live=1 devcore.installer=auto quiet
+      linux: /images/pxeboot/vmlinuz root=live:CDLABEL=DEVCOREOS_LIVE rd.live.image rd.live.overlay.overlayfs=1 systemd.unit=graphical.target devcore.live=1 devcore.installer=auto enforcing=0 console=ttyS0 console=tty0
       initrd: /images/pxeboot/initrd.img

@@ -6,7 +6,10 @@ cargo_bin="${CARGO_BIN:-cargo}"
 image_ref="${DEVCORE_IMAGE_REF:-ghcr.io/techmigosglobal/devcoreos:alpha}"
 base_lock="$repo_root/platform/image/base-images.lock"
 container_engine="${CONTAINER_ENGINE:-podman}"
-compositor_features="${DEVCORE_COMPOSITOR_FEATURES:-native-drm}"
+# Set DEVCORE_COMPOSITOR_FEATURES empty when the native compositor was already
+# built in a Linux toolchain and the image build should avoid another package
+# download. The default still builds the reviewed native-drm feature.
+compositor_features="${DEVCORE_COMPOSITOR_FEATURES-native-drm}"
 
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -28,6 +31,11 @@ require_command "$container_engine"
 base_image="$(sed -n 's/^base_image = "\(.*\)"$/\1/p' "$base_lock")"
 if [[ "$base_image" != *@sha256:* ]]; then
     printf 'error: base_image must be a digest-pinned OCI reference\n' >&2
+    exit 1
+fi
+build_base_image="${DEVCORE_BASE_IMAGE_REF:-$base_image}"
+if [[ -n "${DEVCORE_BASE_IMAGE_REF:-}" && "$build_base_image" != localhost/* && "$build_base_image" != *@sha256:* ]]; then
+    printf 'error: DEVCORE_BASE_IMAGE_REF must be a local image or digest-pinned reference\n' >&2
     exit 1
 fi
 
@@ -69,8 +77,12 @@ fi
 "$cargo_bin" build --locked --release --package devcored --package devcore-firstbootd \
     --package devcore-greeter --package devcore-hardwared --package devcore-shell \
     --package devcore-updated --package devcore-workd --package devcore-provisiond
-if ! "$container_engine" image inspect "$base_image" >/dev/null 2>&1; then
-    "$container_engine" pull "$base_image"
+if ! "$container_engine" image inspect "$build_base_image" >/dev/null 2>&1; then
+    if [[ -n "${DEVCORE_BASE_IMAGE_REF:-}" ]]; then
+        printf 'error: selected BaseOS image is not available locally: %s\n' "$build_base_image" >&2
+        exit 1
+    fi
+    "$container_engine" pull "$build_base_image"
 fi
 
 build_context="$(mktemp -d "${TMPDIR:-/tmp}/devcore-oci.XXXXXX")"
@@ -124,10 +136,14 @@ install -D -m 0644 "$repo_root/platform/system/greetd/config.toml" \
     "$build_context/etc/greetd/config.toml"
 
 if [[ "$container_engine" == "podman" ]]; then
-    podman build --pull=never --format=oci --tag "$image_ref" --file "$repo_root/platform/image/Containerfile" "$build_context"
+    podman build --pull=never --format=oci --build-arg "DEVCORE_BASE_IMAGE=$build_base_image" \
+        --build-arg "DEVCORE_SKIP_RUNTIME_PACKAGES=${DEVCORE_SKIP_RUNTIME_PACKAGES:-false}" \
+        --tag "$image_ref" --file "$repo_root/platform/image/Containerfile" "$build_context"
 else
     # Docker is a local build fallback only. image-builder consumes Podman
     # storage later, so release builders continue to use Podman.
-    docker build --pull=false --tag "$image_ref" --file "$repo_root/platform/image/Containerfile" "$build_context"
+    docker build --pull=false --build-arg "DEVCORE_BASE_IMAGE=$build_base_image" \
+        --build-arg "DEVCORE_SKIP_RUNTIME_PACKAGES=${DEVCORE_SKIP_RUNTIME_PACKAGES:-false}" \
+        --tag "$image_ref" --file "$repo_root/platform/image/Containerfile" "$build_context"
 fi
 printf 'OCI image built: %s\n' "$image_ref"
