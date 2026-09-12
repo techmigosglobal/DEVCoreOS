@@ -35,6 +35,13 @@ installation.
 
 ## Native live ISO and VM evidence
 
+Every push to `main` runs the `build_iso` CI job after source validation. The
+job publishes a commit-specific BaseOS image, builds the offline native
+installer, verifies that exactly one non-empty ISO was produced, writes its
+SHA-256 checksum, and uploads both files as the
+`devcoreos-native-installer-<commit>` Actions artifact. The workflow can also
+be started manually with **Run workflow**.
+
 Run this only in a privileged, isolated image-builder environment:
 
 ```bash

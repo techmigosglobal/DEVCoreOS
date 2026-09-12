@@ -1,9 +1,14 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -12,10 +17,106 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      - name: Install native link dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libxkbcommon-dev
       - name: Validate source and native installer contracts
         run: platform/ci.sh
+
+  build_iso:
+    name: Build native installer ISO
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DEVCORE_IMAGE_REF: ghcr.io/techmigosglobal/devcoreos:ci-${{ github.sha }}
+      DEVCORE_INSTALLER_IMAGE_REF: ghcr.io/techmigosglobal/devcoreos-installer:ci-${{ github.sha }}
+      DEVCORE_INSTALLER_OUTPUT_DIR: ${{ github.workspace }}/artifacts/native-installer-iso
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.90.0
+      - name: Install image build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            jq \
+            libdrm-dev \
+            libegl1-mesa-dev \
+            libgbm-dev \
+            libinput-dev \
+            libseat-dev \
+            libudev-dev \
+            libxkbcommon-dev \
+            podman
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log Podman in to GHCR
+        shell: bash
+        run: printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish commit BaseOS
+        id: base
+        shell: bash
+        run: |
+          platform/image/build-oci.sh
+          digest_file="$RUNNER_TEMP/devcore-base.digest"
+          podman push --digestfile "$digest_file" "$DEVCORE_IMAGE_REF"
+          digest="$(<"$digest_file")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          base_ref="ghcr.io/techmigosglobal/devcoreos@$digest"
+          podman pull "$base_ref"
+          printf 'ref=%s\n' "$base_ref" >> "$GITHUB_OUTPUT"
+      - name: Build native installer image
+        shell: bash
+        env:
+          DEVCORE_BASE_IMAGE: ${{ steps.base.outputs.ref }}
+          DEVCORE_INSTALLER_BASE_IMAGE_REF: ${{ steps.base.outputs.ref }}
+        run: platform/image/build-native-installer-oci.sh
+      - name: Pull pinned Image Builder
+        shell: bash
+        run: |
+          builder_image="$(sed -n 's/^image_builder_image = "\(.*\)"$/\1/p' platform/image/base-images.lock)"
+          [[ "$builder_image" == *@sha256:* ]]
+          docker pull "$builder_image"
+          printf 'DEVCORE_IMAGE_BUILDER_IMAGE=%s\n' "$builder_image" >> "$GITHUB_ENV"
+      - name: Build native installer ISO
+        run: platform/image/build-native-installer-iso.sh
+      - name: Verify ISO artifact
+        id: iso
+        shell: bash
+        run: |
+          mapfile -t iso_files < <(find "$DEVCORE_INSTALLER_OUTPUT_DIR" -type f -name '*.iso' -print)
+          [[ "${#iso_files[@]}" -eq 1 ]] || {
+            printf 'error: expected exactly one ISO, found %s\n' "${#iso_files[@]}" >&2
+            exit 1
+          }
+          test -s "${iso_files[0]}"
+          sha256sum "${iso_files[0]}" > "${iso_files[0]}.sha256"
+          printf 'path=%s\n' "${iso_files[0]}" >> "$GITHUB_OUTPUT"
+          ls -lh "${iso_files[0]}" "${iso_files[0]}.sha256"
+      - name: Upload native installer ISO
+        uses: actions/upload-artifact@v7
+        with:
+          name: devcoreos-native-installer-${{ github.sha }}
+          path: |
+            ${{ steps.iso.outputs.path }}
+            ${{ steps.iso.outputs.path }}.sha256
+          if-no-files-found: error
+          retention-days: 7

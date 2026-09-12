@@ -20,10 +20,12 @@ polkit_action="$system_root/polkit-1/actions/org.devcore.installer.policy"
 polkit_rule="$system_root/polkit-1/rules.d/org.devcore.installer.rules"
 installer_config="$system_root/installer/config.json"
 installer_containerfile="$containerfile"
+ci_workflow="$repo_root/.github/workflows/ci.yml"
 
 for file in "$contract" "$containerfile" "$boot_config" "$oci_script" "$iso_script" \
     "$service" "$live_greetd" "$live_tmpfiles" "$policy" "$activation" "$polkit_action" "$polkit_rule" \
-    "$installer_config" "$system_root/sysusers.d/devcore-live.conf" "$installer_app" "$shell_app"; do
+    "$installer_config" "$system_root/sysusers.d/devcore-live.conf" "$installer_app" "$shell_app" \
+    "$ci_workflow"; do
     [[ -f "$file" ]] || {
         printf 'error: missing native installer asset: %s\n' "$file" >&2
         exit 1
@@ -128,6 +130,14 @@ grep -Fq 'sha256sum devcore-baseos.oci.tar payload-image.ref payload-config.dige
 grep -Fq 'payload-config.digest' "$installer_containerfile"
 grep -Fq 'podman load --input' "$installer_config"
 grep -Fq '"$(uname -m)" == "x86_64"' "$iso_script"
+builder_image="$(sed -n 's/^image_builder_image = "\(.*\)"$/\1/p' "$repo_root/platform/image/base-images.lock")"
+[[ "$builder_image" =~ ^ghcr\.io/osbuild/image-builder-cli@sha256:[0-9a-f]{64}$ ]]
+grep -Fq 'Image Builder container must be digest pinned' "$iso_script"
+grep -Fq 'build_iso:' "$ci_workflow"
+grep -Fq 'libxkbcommon-dev' "$ci_workflow"
+grep -Fq 'platform/image/build-native-installer-iso.sh' "$ci_workflow"
+grep -Fq 'if-no-files-found: error' "$ci_workflow"
+grep -Fq "find \"\$DEVCORE_INSTALLER_OUTPUT_DIR\" -type f -name '*.iso'" "$ci_workflow"
 grep -Fq 'OwnedFd::from' "$installer_app"
 grep -Fq 'source.set_password("".into())' "$installer_app"
 

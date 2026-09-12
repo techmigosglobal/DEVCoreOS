@@ -5,7 +5,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 image_builder_bin="${IMAGE_BUILDER_BIN:-image-builder}"
 installer_image="${DEVCORE_INSTALLER_IMAGE_REF:-ghcr.io/techmigosglobal/devcoreos-installer:alpha}"
 output_dir="${DEVCORE_INSTALLER_OUTPUT_DIR:-$repo_root/artifacts/native-installer-iso}"
-builder_image="${DEVCORE_IMAGE_BUILDER_IMAGE:-docker.io/library/image-builder-cli:latest}"
+locked_builder_image="$(sed -n 's/^image_builder_image = "\(.*\)"$/\1/p' "$repo_root/platform/image/base-images.lock")"
+builder_image="${DEVCORE_IMAGE_BUILDER_IMAGE:-$locked_builder_image}"
 
 [[ "$(uname -m)" == "x86_64" ]] || {
     printf 'error: native live media is supported only on an x86-64 builder\n' >&2
@@ -13,6 +14,10 @@ builder_image="${DEVCORE_IMAGE_BUILDER_IMAGE:-docker.io/library/image-builder-cl
 }
 [[ -f "$repo_root/platform/image/live-iso.yaml" ]] || {
     printf 'error: missing live boot menu configuration\n' >&2
+    exit 1
+}
+[[ "$builder_image" == *@sha256:* ]] || {
+    printf 'error: Image Builder container must be digest pinned\n' >&2
     exit 1
 }
 if [[ "$installer_image" == registry:*localhost* ]]; then
