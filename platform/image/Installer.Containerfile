@@ -44,7 +44,7 @@ RUN if [[ "$DEVCORE_SKIP_INSTALLER_PACKAGES" != "true" ]]; then \
         dracut-live \
         dracut-config-generic \
         e2fsprogs \
-        gptfdisk \
+        gdisk \
         grub2-efi-x64-cdboot \
         grub2-pc-modules \
         grub2-tools \
@@ -55,8 +55,8 @@ RUN if [[ "$DEVCORE_SKIP_INSTALLER_PACKAGES" != "true" ]]; then \
         squashfs-tools \
         util-linux \
         isomd5sum \
-        xorriso; \
-    dnf clean all; \
+        xorriso \
+    && dnf clean all; \
     else \
         echo "Using a prebuilt local installer tool layer"; \
     fi \

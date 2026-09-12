@@ -73,6 +73,11 @@ grep -Fqx 'COPY usr/bin/devcore-installer /usr/bin/devcore-installer' "$containe
 grep -Fq 'ARG DEVCORE_INSTALLER_BASE_IMAGE=' "$containerfile"
 grep -Fq 'FROM ${DEVCORE_INSTALLER_BASE_IMAGE}' "$containerfile"
 grep -Fq 'ARG DEVCORE_SKIP_INSTALLER_PACKAGES=false' "$containerfile"
+grep -Fq 'gdisk' "$containerfile"
+if grep -Fq 'gptfdisk' "$containerfile"; then
+    printf 'error: Fedora installer image must use the gdisk package name\n' >&2
+    exit 1
+fi
 grep -Fq 'rm -rf /usr/share/anaconda /usr/libexec/anaconda' "$containerfile"
 grep -Fq 'graphical.target /etc/systemd/system/default.target' "$containerfile"
 grep -Fq 'multi-user.target.wants/greetd.service' "$containerfile"
