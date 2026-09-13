@@ -1,13 +1,13 @@
 # Immutable x86-64 base references resolved from the Fedora 43 manifest on
-# 2026-09-12: use this digest-pinned Fedora bootc payload for the build.
+# 2026-09-13: use this digest-pinned Fedora bootc payload for the build.
 # Refresh this pin through a reviewed supply-chain change before release CI.
 
-base_image = "quay.io/fedora/fedora-bootc@sha256:b81bc4c7793ad4ea4c2999dcab93eab44287b13cf0b2304cb1bb510f734fb277"
+base_image = "quay.io/fedora/fedora-bootc@sha256:cc0ace5a606b14e8f033ae25a1574b50d22beac2841e25dca32626730aec4df7"
 base_tag = "43"
 
 # The Fedora bootc base supplies the target SELinux policy and the bootc
 # installation tools needed by the unified Image Builder build root.
-build_root_image = "quay.io/fedora/fedora-bootc@sha256:b81bc4c7793ad4ea4c2999dcab93eab44287b13cf0b2304cb1bb510f734fb277"
+build_root_image = "quay.io/fedora/fedora-bootc@sha256:cc0ace5a606b14e8f033ae25a1574b50d22beac2841e25dca32626730aec4df7"
 
 # Unified Image Builder container used for privileged ISO assembly.
 image_builder_image = "ghcr.io/osbuild/image-builder-cli@sha256:4f4ac7b99dfbbd7e42cccd21dfc58db75f19d48b2855397b01aa24cbf8626991"
