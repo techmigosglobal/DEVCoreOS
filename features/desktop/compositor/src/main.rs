@@ -572,7 +572,10 @@ fn run_nested(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
                 }
                 InputEvent::PointerMotionAbsolute { event } => {
                     let output_size = backend.window_size().to_logical(1);
-                    let location = event.position_transformed(output_size);
+                    let location = clamp_pointer_location(
+                        event.position_transformed(output_size),
+                        output_size,
+                    );
                     state.dispatch_pointer_motion(location, event.time_msec());
                 }
                 InputEvent::PointerButton { event } => {

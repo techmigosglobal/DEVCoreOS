@@ -25,10 +25,11 @@ use devcore_installer_domain::{
 };
 use serde::Deserialize;
 use zbus::{
+    Connection, MessageHeader, Proxy,
     connection::Builder,
     fdo, interface,
     object_server::SignalContext,
-    zvariant::{OwnedFd, OwnedObjectPath, OwnedValue},
+    zvariant::{OwnedFd, OwnedObjectPath, OwnedValue, Str},
 };
 
 #[cfg(unix)]
@@ -41,6 +42,11 @@ const PAYLOAD_SUMS: &str = "/usr/share/devcore-installer/payload/SHA256SUMS";
 const PAYLOAD_REFERENCE: &str = "/usr/share/devcore-installer/payload/payload-image.ref";
 const TARGET_ROOT: &str = "/run/devcore-installer/target";
 const MAX_PASSWORD_BYTES: usize = 1024;
+const POLKIT_ACTION: &str = "org.devcore.installer.manage";
+const POLKIT_BUS_NAME: &str = "org.freedesktop.PolicyKit1";
+const POLKIT_OBJECT_PATH: &str = "/org/freedesktop/PolicyKit1/Authority";
+const POLKIT_INTERFACE: &str = "org.freedesktop.PolicyKit1.Authority";
+const POLKIT_ALLOW_USER_INTERACTION: u32 = 1;
 
 type Dictionary = HashMap<String, OwnedValue>;
 
@@ -70,6 +76,45 @@ impl ServiceState {
             next_job: 1,
             worker_active: false,
         }
+    }
+}
+
+async fn authorize_start(connection: &Connection, sender: &str) -> fdo::Result<()> {
+    let proxy = Proxy::new(
+        connection,
+        POLKIT_BUS_NAME,
+        POLKIT_OBJECT_PATH,
+        POLKIT_INTERFACE,
+    )
+    .await
+    .map_err(|error| fdo::Error::Failed(format!("cannot contact polkit: {error}")))?;
+
+    let mut subject_details: HashMap<String, OwnedValue> = HashMap::new();
+    subject_details.insert("name".to_owned(), Str::from(sender.to_owned()).into());
+    let subject = ("system-bus-name", subject_details);
+    let details = HashMap::<String, String>::new();
+    let (authorized, _challenge, _result_details): (bool, bool, HashMap<String, String>) = proxy
+        .call(
+            "CheckAuthorization",
+            &(
+                subject,
+                POLKIT_ACTION,
+                details,
+                POLKIT_ALLOW_USER_INTERACTION,
+                "",
+            ),
+        )
+        .await
+        .map_err(|error| {
+            fdo::Error::Failed(format!("cannot check installer authorization: {error}"))
+        })?;
+
+    if authorized {
+        Ok(())
+    } else {
+        Err(fdo::Error::AccessDenied(
+            "installer authorization denied".to_owned(),
+        ))
     }
 }
 
@@ -105,13 +150,20 @@ impl InstallerApi {
         Ok((confirmation, disk_dictionary(&disk)))
     }
 
-    fn start(
+    async fn start(
         &self,
+        #[zbus(header)] header: MessageHeader<'_>,
         confirmation: String,
         configuration: Dictionary,
         password_fd: OwnedFd,
+        #[zbus(connection)] connection: &Connection,
         #[zbus(signal_context)] signal_context: SignalContext<'_>,
     ) -> fdo::Result<OwnedObjectPath> {
+        let sender = header
+            .sender()
+            .ok_or_else(|| fdo::Error::AccessDenied("installer caller is unknown".to_owned()))?
+            .to_string();
+        authorize_start(connection, &sender).await?;
         let password = read_password(password_fd).map_err(invalid)?;
         let (request, job_path) = {
             let mut state = self.state.lock().map_err(poisoned)?;
