@@ -53,9 +53,13 @@ docker run --rm --privileged -i \
             --output-dir /workspace/output \
             qcow2'
 
-qcow2="$(find "$build_context/output" -type f -name disk.qcow2 -print -quit)"
+# Image Builder names the artifact from the selected bootc image (for example
+# bootc-fedora-43-qcow2-x86_64.qcow2) rather than using a fixed disk.qcow2
+# filename.  Select the single QCOW2 artifact and normalize it below so the
+# rest of the pipeline has a stable path.
+qcow2="$(find "$build_context/output" -type f -name '*.qcow2' -print -quit)"
 if [[ -z "$qcow2" ]]; then
-    printf 'error: Image Builder completed without producing disk.qcow2\n' >&2
+    printf 'error: Image Builder completed without producing a QCOW2 artifact\n' >&2
     exit 1
 fi
 install -D -m 0644 "$qcow2" "$output_dir/disk.qcow2"
