@@ -229,7 +229,7 @@ pub(crate) fn run(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
     let libinput_backend = LibinputInputBackend::new(libinput_context.clone());
     event_loop
         .handle()
-        .insert_source(libinput_backend, |event, _, data| {
+        .insert_source(libinput_backend, move |event, _, data| {
             match event {
                 InputEvent::Keyboard { event } => {
                     if let Some(keyboard) = data.app.seat.get_keyboard() {
