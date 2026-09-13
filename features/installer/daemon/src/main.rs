@@ -89,9 +89,7 @@ async fn authorize_start(connection: &Connection, sender: &str) -> fdo::Result<(
     .await
     .map_err(|error| fdo::Error::Failed(format!("cannot contact polkit: {error}")))?;
 
-    let mut subject_details: HashMap<String, OwnedValue> = HashMap::new();
-    subject_details.insert("name".to_owned(), Str::from(sender.to_owned()).into());
-    let subject = ("system-bus-name", subject_details);
+    let subject = polkit_subject(sender);
     let details = HashMap::<String, String>::new();
     let (authorized, _challenge, _result_details): (bool, bool, HashMap<String, String>) = proxy
         .call(
@@ -116,6 +114,12 @@ async fn authorize_start(connection: &Connection, sender: &str) -> fdo::Result<(
             "installer authorization denied".to_owned(),
         ))
     }
+}
+
+fn polkit_subject(sender: &str) -> (&'static str, Dictionary) {
+    let mut details = HashMap::new();
+    details.insert("name".to_owned(), Str::from(sender.to_owned()).into());
+    ("system-bus-name", details)
 }
 
 #[interface(name = "org.devcore.Installer1")]
@@ -1105,6 +1109,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zbus::zvariant::Type;
 
     #[test]
     fn partition_names_cover_sata_and_nvme_devices() {
@@ -1183,5 +1188,16 @@ mod tests {
     fn diagnostics_are_bounded_and_secret_free_after_password_read_error() {
         assert!(sanitize_diagnostic(&"a".repeat(1000)).len() <= 512);
         assert_eq!(DISK_ID_PREFIX, "/dev/disk/by-id/");
+    }
+
+    #[test]
+    fn polkit_subject_is_bound_to_the_dbus_sender_name() {
+        let (kind, mut details) = polkit_subject(":1.42");
+        assert_eq!(kind, "system-bus-name");
+        assert_eq!(
+            String::try_from(details.remove("name").unwrap()).unwrap(),
+            ":1.42"
+        );
+        assert_eq!(<(&str, Dictionary)>::signature(), "(sa{sv})");
     }
 }

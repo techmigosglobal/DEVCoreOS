@@ -275,15 +275,20 @@ pub(crate) fn run(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
                         .dispatch_pointer_motion(location, event.time_msec());
                 }
                 InputEvent::PointerMotionAbsolute { event } => {
-                    let location = event.position_transformed(output_size);
+                    let location = super::clamp_pointer_location(
+                        event.position_transformed(output_size),
+                        output_size,
+                    );
                     data.app
                         .dispatch_pointer_motion(location, event.time_msec());
                 }
                 InputEvent::PointerButton { event } => {
-                    data.app.dispatch_pointer_button(event);
+                    data.app
+                        .dispatch_pointer_button::<LibinputInputBackend>(event);
                 }
                 InputEvent::PointerAxis { event } => {
-                    data.app.dispatch_pointer_axis(event);
+                    data.app
+                        .dispatch_pointer_axis::<LibinputInputBackend>(event);
                 }
                 _ => {}
             }
