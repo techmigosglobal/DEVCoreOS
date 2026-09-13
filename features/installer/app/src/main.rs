@@ -24,7 +24,7 @@ const OBJECT_PATH: &str = "/org/devcore/Installer";
 const INTERFACE: &str = "org.devcore.Installer1";
 
 slint::slint! {
-    import { Button, LineEdit, TextEdit } from "std-widgets.slint";
+    import { Button, LineEdit, TextEdit, ComboBox } from "std-widgets.slint";
 
     component RailItem inherits Rectangle {
         in property <string> label;
@@ -69,6 +69,7 @@ slint::slint! {
         callback start-install();
         callback refresh-status();
         callback cancel-install();
+        callback reboot();
 
         background: #f7faff;
         VerticalLayout {
@@ -98,12 +99,12 @@ slint::slint! {
                     Text { text: "Welcome"; color: root.step == 0 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 0 ? 700 : 400; vertical-alignment: center; }
                     Text { text: "Disk"; color: root.step == 1 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 1 ? 700 : 400; vertical-alignment: center; }
                     Text { text: "Locale"; color: root.step == 2 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 2 ? 700 : 400; vertical-alignment: center; }
-                    Text { text: "Account"; color: root.step == 2 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 2 ? 700 : 400; vertical-alignment: center; }
-                    Text { text: "Password"; color: root.step == 2 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 2 ? 700 : 400; vertical-alignment: center; }
-                    Text { text: "Profile"; color: root.step == 2 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 2 ? 700 : 400; vertical-alignment: center; }
-                    Text { text: "Review"; color: root.step == 3 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 3 ? 700 : 400; vertical-alignment: center; }
-                    Text { text: "Install"; color: root.step == 4 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 4 ? 700 : 400; vertical-alignment: center; }
-                    Text { text: "Finish"; color: root.step == 4 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 4 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Account"; color: root.step == 3 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 3 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Password"; color: root.step == 4 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 4 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Profile"; color: root.step == 5 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 5 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Review"; color: root.step == 6 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 6 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Install"; color: root.step == 7 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 7 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Finish"; color: root.step == 8 ? #1683ff : #8b9aad; font-size: 11px; font-weight: root.step == 8 ? 700 : 400; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; }
                 }
             }
@@ -140,8 +141,8 @@ slint::slint! {
                     horizontal-stretch: 1; background: #f7faff;
                     VerticalLayout {
                         padding-left: 48px; padding-right: 48px; padding-top: 32px; padding-bottom: 26px; spacing: 20px;
-                        Text { text: root.step == 0 ? "A live desktop, with a calmer install path" : root.step == 1 ? "Choose the disk for DevCore" : root.step == 2 ? "Make DevCore yours" : root.step == 3 ? "One last review" : "DevCore is installing in the background"; color: #121b2a; font-size: 28px; font-weight: 800; }
-                        Text { text: root.step == 0 ? "Explore the live session first. When you are ready, DevCore will install the BaseOS from this USB without downloading developer tools." : root.step == 1 ? "Only eligible internal disks are shown. DevCore will erase the selected disk and create a 1 GiB EFI partition plus an ext4 system partition." : root.step == 2 ? "These settings are written to the installed system before its first reboot. Your password is transferred once through a protected file descriptor." : root.step == 3 ? "Read the target carefully. This is the only destructive step." : "You can continue using the live desktop while the installer works. Do not remove the USB drive."; color: #66758a; font-size: 14px; wrap: word-wrap; }
+                        Text { text: root.step == 0 ? "A live desktop, with a calmer install path" : root.step == 1 ? "Choose the disk for DevCore" : root.step == 2 ? "Select your region" : root.step == 3 ? "Make DevCore yours" : root.step == 5 ? "Development profile" : root.step == 6 ? "One last review" : root.step == 7 ? "DevCore is installing in the background" : "Installation complete"; color: #121b2a; font-size: 28px; font-weight: 800; }
+                        Text { text: root.step == 0 ? "Explore the live session first. When you are ready, DevCore will install the BaseOS from this USB without downloading developer tools." : root.step == 1 ? "Only eligible internal disks are shown. DevCore will erase the selected disk and create a 1 GiB EFI partition plus an ext4 system partition." : root.step == 2 ? "Set your locale, keyboard layout, and timezone." : root.step == 3 ? "These settings are written to the installed system before its first reboot. Your password is transferred once through a protected file descriptor." : root.step == 5 ? "Choose how your system will be tuned." : root.step == 6 ? "Read the target carefully. This is the only destructive step." : root.step == 7 ? "You can continue using the live desktop while the installer works. Do not remove the USB drive." : "DevCore OS is ready. You can restart now."; color: #66758a; font-size: 14px; wrap: word-wrap; }
                         Rectangle { height: 1px; background: #e6edf6; }
                         Rectangle {
                             vertical-stretch: 1; border-radius: 17px; background: #ffffff; border-width: 1px; border-color: #e1e9f3;
@@ -161,8 +162,9 @@ slint::slint! {
                                 VerticalLayout {
                                     padding: 36px; spacing: 15px;
                                     HorizontalLayout { Text { text: "Available internal disks"; color: #1d2b3d; font-size: 18px; font-weight: 800; } Rectangle { horizontal-stretch: 1; } Button { text: "Refresh disks"; enabled: !root.busy; clicked => { root.discover-disks(); } } }
-                                    Text { text: root.disk-options.length == 0 ? "No eligible disk is loaded yet." : root.disk-options.length + " eligible disk(s) discovered. Paste or select the stable /dev/disk/by-id identifier below."; color: #748196; font-size: 12px; }
-                                    LineEdit { text <=> root.disk-id; placeholder-text: "/dev/disk/by-id/..."; enabled: !root.busy; height: 50px; }
+                                    Text { text: root.disk-options.length == 0 ? "No eligible disk is loaded yet." : root.disk-options.length + " eligible disk(s) discovered."; color: #748196; font-size: 12px; }
+                                    ComboBox { model: root.disk-options; enabled: !root.busy; current-value <=> root.disk-id; }
+                                    Text { text: "Select a stable /dev/disk/by-id target. The daemon revalidates it before any write."; color: #748196; font-size: 12px; wrap: word-wrap; }
                                     Rectangle { height: 106px; border-radius: 13px; background: #f8fbff; border-width: 1px; border-color: #e4edf7; VerticalLayout { padding: 18px; spacing: 8px; Text { text: "Target review"; color: #233248; font-size: 13px; font-weight: 750; } Text { text: root.disk-summary; color: #617189; font-size: 12px; wrap: word-wrap; } } }
                                     HorizontalLayout { Rectangle { horizontal-stretch: 1; } Button { text: "Review selected disk"; enabled: !root.busy && root.disk-id != ""; clicked => { root.run-preflight(); } } }
                                     Rectangle { vertical-stretch: 1; }
@@ -171,15 +173,52 @@ slint::slint! {
                             }
                             Rectangle {
                                 visible: root.step == 2; width: 100%; height: 100%;
-                                HorizontalLayout {
-                                    padding: 36px; spacing: 28px;
-                                    Rectangle { width: 50%; VerticalLayout { spacing: 10px; Text { text: "System preferences"; color: #1d2b3d; font-size: 17px; font-weight: 800; } Text { text: "Language"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.locale; height: 42px; enabled: !root.busy; } Text { text: "Keyboard"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.keyboard; height: 42px; enabled: !root.busy; } Text { text: "Time zone"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.timezone; height: 42px; enabled: !root.busy; } Text { text: "Machine name"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.hostname; height: 42px; enabled: !root.busy; } } }
-                                    Rectangle { width: 1px; background: #edf1f7; }
-                                    Rectangle { horizontal-stretch: 1; VerticalLayout { spacing: 10px; Text { text: "Developer account"; color: #1d2b3d; font-size: 17px; font-weight: 800; } Text { text: "Username"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.username; height: 42px; enabled: !root.busy; } Text { text: "Password"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.password; input-type: InputType.password; height: 42px; enabled: !root.busy; } Text { text: "Confirm password"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.password-confirm; input-type: InputType.password; height: 42px; enabled: !root.busy; } Text { text: "Development profile"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.profile; height: 42px; enabled: !root.busy; } Text { text: "Passwords are never written to installer logs or job state."; color: #738198; font-size: 11px; wrap: word-wrap; } } }
+                                VerticalLayout {
+                                    padding: 36px; spacing: 10px;
+                                    Text { text: "System preferences"; color: #1d2b3d; font-size: 17px; font-weight: 800; }
+                                    Text { text: "Language"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.locale; height: 42px; enabled: !root.busy; }
+                                    Text { text: "Keyboard"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.keyboard; height: 42px; enabled: !root.busy; }
+                                    Text { text: "Time zone"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.timezone; height: 42px; enabled: !root.busy; }
+                                    Text { text: "Machine name"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.hostname; height: 42px; enabled: !root.busy; }
                                 }
                             }
                             Rectangle {
                                 visible: root.step == 3; width: 100%; height: 100%;
+                                VerticalLayout {
+                                    padding: 36px; spacing: 10px;
+                                    Text { text: "Developer account"; color: #1d2b3d; font-size: 17px; font-weight: 800; }
+                                    Text { text: "Username"; color: #53637a; font-size: 11px; font-weight: 650; } LineEdit { text <=> root.username; height: 42px; enabled: !root.busy; }
+                                    Text { text: "The account is created during target configuration."; color: #738198; font-size: 11px; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                visible: root.step == 4; width: 100%; height: 100%;
+                                VerticalLayout {
+                                    padding: 36px; spacing: 10px;
+                                    Text { text: "Protect your account"; color: #1d2b3d; font-size: 17px; font-weight: 800; }
+                                    Text { text: "Password"; color: #53637a; font-size: 11px; font-weight: 650; }
+                                    LineEdit { text <=> root.password; input-type: InputType.password; height: 42px; enabled: !root.busy; }
+                                    Text { text: "Confirm password"; color: #53637a; font-size: 11px; font-weight: 650; }
+                                    LineEdit { text <=> root.password-confirm; input-type: InputType.password; height: 42px; enabled: !root.busy; }
+                                    Text { text: "Passwords are never written to installer logs or job state."; color: #738198; font-size: 11px; wrap: word-wrap; }
+                                }
+                            }
+                            Rectangle {
+                                visible: root.step == 5; width: 100%; height: 100%;
+                                VerticalLayout {
+                                    padding: 36px; spacing: 18px;
+                                    Text { text: "Development profile"; color: #1d2b3d; font-size: 17px; font-weight: 800; }
+                                    HorizontalLayout {
+                                        spacing: 12px;
+                                        Rectangle { width: 25%; border-radius: 8px; border-width: 2px; border-color: root.profile == "low" ? #1877f2 : #e4edf7; TouchArea { clicked => { root.profile = "low"; } } Text { text: "Low-End"; color: root.profile == "low" ? #1877f2 : #3c4a62; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; } }
+                                        Rectangle { width: 25%; border-radius: 8px; border-width: 2px; border-color: root.profile == "balanced" ? #1877f2 : #e4edf7; TouchArea { clicked => { root.profile = "balanced"; } } Text { text: "Balanced"; color: root.profile == "balanced" ? #1877f2 : #3c4a62; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; } }
+                                        Rectangle { width: 25%; border-radius: 8px; border-width: 2px; border-color: root.profile == "standard" ? #1877f2 : #e4edf7; TouchArea { clicked => { root.profile = "standard"; } } Text { text: "Standard"; color: root.profile == "standard" ? #1877f2 : #3c4a62; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; } }
+                                        Rectangle { width: 25%; border-radius: 8px; border-width: 2px; border-color: root.profile == "workstation" ? #1877f2 : #e4edf7; TouchArea { clicked => { root.profile = "workstation"; } } Text { text: "Workstation"; color: root.profile == "workstation" ? #1877f2 : #3c4a62; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; } }
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                visible: root.step == 6; width: 100%; height: 100%;
                                 VerticalLayout {
                                     padding: 36px; spacing: 18px;
                                     Rectangle { height: 118px; border-radius: 14px; background: #fff7ed; border-width: 1px; border-color: #fed7aa; VerticalLayout { padding: 21px; spacing: 8px; Text { text: "This will permanently erase the selected disk"; color: #9a4d06; font-size: 17px; font-weight: 800; } Text { text: root.disk-summary; color: #9a5d1b; font-size: 12px; wrap: word-wrap; } } }
@@ -191,7 +230,8 @@ slint::slint! {
                                 }
                             }
                             Rectangle {
-                                visible: root.step == 4; width: 100%; height: 100%;
+                                visible: root.step == 7; width: 100%; height: 100%;
+                                Timer { interval: 3s; running: root.busy; triggered => { root.refresh-status(); } }
                                 VerticalLayout {
                                     padding: 36px; spacing: 18px;
                                     Rectangle { height: 9px; border-radius: 5px; background: #e6edf6; Rectangle { width: root.busy ? 72% : (root.job-path != "" ? 100% : 0%); height: 100%; border-radius: 5px; background: root.busy ? #2d8cf0 : #25b77a; } }
@@ -205,14 +245,25 @@ slint::slint! {
                                     Text { text: root.status; color: #1877f2; font-size: 12px; wrap: word-wrap; }
                                 }
                             }
+                            Rectangle {
+                                visible: root.step == 8; width: 100%; height: 100%;
+                                VerticalLayout {
+                                    padding: 36px; spacing: 18px;
+                                    Text { text: "Installation Complete"; color: #25b77a; font-size: 20px; font-weight: 800; }
+                                    Text { text: "Target: " + root.disk-summary; color: #3c4a62; font-size: 14px; }
+                                    Text { text: "You can now safely restart. Remove the USB drive when the system restarts."; color: #6d7d92; font-size: 14px; wrap: word-wrap; }
+                                    Rectangle { vertical-stretch: 1; }
+                                    HorizontalLayout { Button { text: "Restart now"; clicked => { root.reboot(); } } Rectangle { horizontal-stretch: 1; } }
+                                }
+                            }
                         }
                         HorizontalLayout {
                             spacing: 10px;
-                            Text { text: root.step < 4 ? "Installation is offline-capable; developer bundles install later." : "Do not remove USB power while finalization is running."; color: #7c8a9e; font-size: 11px; vertical-alignment: center; }
+                            Text { text: root.step < 6 ? "Installation is offline-capable; developer bundles install later." : "Do not remove USB power while finalization is running."; color: #7c8a9e; font-size: 11px; vertical-alignment: center; }
                             Rectangle { horizontal-stretch: 1; }
-                            Button { visible: root.step > 0 && root.step < 4; text: "Back"; enabled: !root.busy; clicked => { root.back(); } }
-                            Button { visible: root.step < 3; text: root.step == 0 ? "Begin installation" : root.step == 1 ? "Continue" : "Review erase"; enabled: !root.busy; clicked => { root.next(); } }
-                            Button { visible: root.step == 3; text: root.busy ? "Starting…" : "Erase disk & install"; enabled: !root.busy && root.confirmation == root.required-confirmation && root.password != "" && root.password == root.password-confirm; clicked => { root.start-install(); } }
+                            Button { visible: root.step > 0 && root.step < 7; text: "Back"; enabled: !root.busy; clicked => { root.back(); } }
+                            Button { visible: root.step < 6; text: root.step == 0 ? "Begin installation" : "Continue"; enabled: !root.busy; clicked => { root.next(); } }
+                            Button { visible: root.step == 6; text: root.busy ? "Starting…" : "Erase disk & install"; enabled: !root.busy && root.confirmation == root.required-confirmation && root.password != "" && root.password == root.password-confirm; clicked => { root.start-install(); } }
                         }
                     }
                 }
@@ -392,7 +443,7 @@ fn start_install(window: slint::Weak<InstallerWindow>) {
                         window.set_job_path(job.into());
                         window.set_progress("Payload verification has started. You can continue using the live desktop.".into());
                         window.set_status("Installer job accepted.".into());
-                        window.set_step(4);
+                        window.set_step(7);
                     }
                     Err(error) => {
                         window.set_busy(false);
@@ -428,7 +479,9 @@ fn refresh_status(window: slint::Weak<InstallerWindow>) {
             if let Some(window) = window.upgrade() {
                 match result {
                     Ok((state, cancellable, diagnostic)) => {
-                        window.set_busy(cancellable || state == "preparing");
+                        let complete = state == "complete";
+                        let terminal = complete || state == "failed" || state == "cancelled";
+                        window.set_busy(!terminal && (cancellable || state == "preparing"));
                         window.set_progress(
                             (if diagnostic.is_empty() {
                                 format!("Installer state: {state}")
@@ -440,6 +493,9 @@ fn refresh_status(window: slint::Weak<InstallerWindow>) {
                         window.set_status(
                             "Status refreshed from the protected installer service.".into(),
                         );
+                        if complete {
+                            window.set_step(8);
+                        }
                     }
                     Err(error) => window.set_status(error.into()),
                 }
@@ -498,6 +554,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     0 => window.set_step(1),
                     1 => preflight(weak.clone()),
                     2 => window.set_step(3),
+                    3 => window.set_step(4),
+                    4 => window.set_step(5),
+                    5 => window.set_step(6),
                     _ => {}
                 }
             }
@@ -513,6 +572,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     });
+    window.on_reboot(move || {
+        let _ = std::process::Command::new("systemctl")
+            .arg("reboot")
+            .spawn();
+    });
     window.on_start_install({
         let weak = window.as_weak();
         move || start_install(weak.clone())
@@ -525,6 +589,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let weak = window.as_weak();
         move || cancel_install(weak.clone())
     });
+    load_disks(window.as_weak());
     window.run()?;
     Ok(())
 }

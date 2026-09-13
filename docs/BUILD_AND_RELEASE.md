@@ -33,15 +33,17 @@ The second command saves the exact BaseOS image into the installer image as an
 OCI archive and writes its SHA-256 manifest. It does not download during an
 installation.
 
-## Native live ISO and VM evidence
+## Native QCOW2, live ISO, and VM evidence
 
-Every push to `main` runs the `build_iso` CI job after source validation. The
-job publishes a commit-specific BaseOS image, builds the offline native
-installer, verifies that exactly one non-empty ISO was produced, writes its
-SHA-256 checksum, boots it with UEFI/KVM until Linux and systemd are observed
-on the serial console, and uploads the ISO, checksum, and boot evidence as the
-`devcoreos-native-installer-<commit>` Actions artifact. The workflow can also
-be started manually with **Run workflow**.
+Every push to `main` runs the release-order gates after source validation:
+publish a commit-specific BaseOS OCI, build a QCOW2 through the digest-pinned
+Image Builder container, boot-test that disk with UEFI/KVM, run the SELinux
+startup/AVC check, and only then assemble the offline native installer ISO.
+The ISO job verifies that exactly one non-empty ISO was produced, writes its
+SHA-256 checksum, boots the media with UEFI/KVM until Linux and systemd are
+observed on the serial console, and uploads the ISO, checksum, and boot
+evidence as the `devcoreos-native-installer-<commit>` Actions artifact. The
+workflow can also be started manually with **Run workflow**.
 
 Run this only in a privileged, isolated image-builder environment:
 

@@ -24,7 +24,10 @@ use std::{
 use ::winit::platform::pump_events::PumpStatus;
 use smithay::{
     backend::{
-        input::{InputEvent, KeyState, KeyboardKeyEvent},
+        input::{
+            AbsolutePositionEvent, Axis, AxisSource, Event, InputBackend, InputEvent, KeyState,
+            KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
+        },
         renderer::{
             Color32F, Frame, Renderer,
             element::{
@@ -38,12 +41,14 @@ use smithay::{
     },
     delegate_compositor, delegate_data_device, delegate_output, delegate_seat, delegate_shm,
     delegate_xdg_shell,
+    desktop::{WindowSurfaceType, utils::under_from_surface_tree},
     input::{
         Seat, SeatHandler, SeatState,
         keyboard::{FilterResult, keysyms},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent},
     },
     reexports::wayland_server::{Display, protocol::wl_seat},
-    utils::{Rectangle, Serial, Transform},
+    utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size, Transform},
     wayland::{
         buffer::BufferHandler,
         compositor::{
@@ -157,6 +162,131 @@ impl App {
             .map(|window| window.surface.wl_surface().clone())
     }
 
+    fn pointer_focus_at(
+        &mut self,
+        location: Point<f64, Logical>,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        self.prune_windows();
+        let visible = self
+            .windows
+            .iter()
+            .filter(|window| window.workspace == self.active_workspace)
+            .collect::<Vec<_>>();
+
+        visible
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(stack_index, window)| {
+                under_from_surface_tree(
+                    window.surface.wl_surface(),
+                    location,
+                    window_location(stack_index),
+                    WindowSurfaceType::ALL,
+                )
+                .map(|(surface, surface_location)| (surface, surface_location.to_f64()))
+            })
+    }
+
+    fn focus_window_at(&mut self, location: Point<f64, Logical>, serial: Serial) {
+        self.prune_windows();
+        let visible = self
+            .windows
+            .iter()
+            .filter(|window| window.workspace == self.active_workspace)
+            .collect::<Vec<_>>();
+        let focused = visible
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(stack_index, window)| {
+                under_from_surface_tree(
+                    window.surface.wl_surface(),
+                    location,
+                    window_location(stack_index),
+                    WindowSurfaceType::ALL,
+                )
+                .map(|_| (window.id, window.surface.wl_surface().clone()))
+            });
+
+        if let Some((id, surface)) = focused {
+            self.focused_window = Some(id);
+            if let Some(keyboard) = self.seat.get_keyboard() {
+                keyboard.set_focus(self, Some(surface), serial);
+            }
+        }
+    }
+
+    fn dispatch_pointer_motion(&mut self, location: Point<f64, Logical>, time: u32) {
+        let Some(pointer) = self.seat.get_pointer() else {
+            return;
+        };
+        let focus = self.pointer_focus_at(location);
+        pointer.motion(
+            self,
+            focus,
+            &MotionEvent {
+                location,
+                serial: SERIAL_COUNTER.next_serial(),
+                time,
+            },
+        );
+        pointer.frame(self);
+
+        // Keep the pre-existing keyboard behavior: pointer movement ensures the
+        // active workspace's focused toplevel receives subsequent key events.
+        if let Some(surface) = self.focused_surface()
+            && let Some(keyboard) = self.seat.get_keyboard()
+        {
+            keyboard.set_focus(self, Some(surface), SERIAL_COUNTER.next_serial());
+        }
+    }
+
+    fn dispatch_pointer_button<B: InputBackend>(&mut self, event: B::PointerButtonEvent) {
+        let Some(pointer) = self.seat.get_pointer() else {
+            return;
+        };
+        let serial = SERIAL_COUNTER.next_serial();
+        if event.state() == smithay::backend::input::ButtonState::Pressed {
+            self.focus_window_at(pointer.current_location(), serial);
+        }
+        pointer.button(
+            self,
+            &ButtonEvent {
+                serial,
+                time: event.time_msec(),
+                button: event.button_code(),
+                state: event.state(),
+            },
+        );
+        pointer.frame(self);
+    }
+
+    fn dispatch_pointer_axis<B: InputBackend>(&mut self, event: B::PointerAxisEvent) {
+        let Some(pointer) = self.seat.get_pointer() else {
+            return;
+        };
+        let mut frame = AxisFrame::new(event.time_msec()).source(event.source());
+        for axis in [Axis::Horizontal, Axis::Vertical] {
+            let amount = event
+                .amount(axis)
+                .unwrap_or_else(|| event.amount_v120(axis).unwrap_or(0.0) * 15.0 / 120.0);
+            if amount != 0.0 {
+                frame = frame
+                    .relative_direction(axis, event.relative_direction(axis))
+                    .value(axis, amount);
+                if let Some(v120) = event.amount_v120(axis) {
+                    frame = frame.v120(axis, v120 as i32);
+                }
+            }
+            if event.source() == AxisSource::Finger && event.amount(axis) == Some(0.0) {
+                frame = frame.stop(axis);
+            }
+        }
+        pointer.axis(self, frame);
+        pointer.frame(self);
+    }
+
     fn switch_workspace(&mut self, workspace: u8) {
         self.active_workspace = workspace.clamp(1, WORKSPACE_COUNT);
         self.focused_window = self
@@ -172,6 +302,15 @@ impl App {
 fn window_location(stack_index: usize) -> (i32, i32) {
     let offset = (stack_index as i32).saturating_mul(32);
     (offset, offset)
+}
+
+fn clamp_pointer_location(
+    location: Point<f64, Logical>,
+    output_size: Size<i32, Logical>,
+) -> Point<f64, Logical> {
+    let max_x = f64::from(output_size.w.saturating_sub(1).max(0));
+    let max_y = f64::from(output_size.h.saturating_sub(1).max(0));
+    (location.x.clamp(0.0, max_x), location.y.clamp(0.0, max_y)).into()
 }
 
 fn workspace_from_keysym(value: u32) -> Option<u8> {
@@ -365,7 +504,8 @@ fn run_nested(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
     let compositor_state = CompositorState::new::<App>(&display_handle);
     let shm_state = ShmState::new::<App>(&display_handle, vec![]);
     let mut seat_state = SeatState::new();
-    let seat = seat_state.new_wl_seat(&display_handle, "devcore-seat");
+    let mut seat = seat_state.new_wl_seat(&display_handle, "devcore-seat");
+    seat.add_pointer();
     let mut state = App {
         compositor_state,
         xdg_shell_state: XdgShellState::new::<App>(&display_handle),
@@ -430,12 +570,13 @@ fn run_nested(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
                         keyboard.set_focus(&mut state, Some(surface), 0.into());
                     }
                 }
-                InputEvent::PointerMotionAbsolute { .. } => {
-                    let focused_surface = state.focused_surface();
-                    if let Some(surface) = focused_surface {
-                        keyboard.set_focus(&mut state, Some(surface), 0.into());
-                    }
+                InputEvent::PointerMotionAbsolute { event } => {
+                    let output_size = backend.window_size().to_logical(1);
+                    let location = event.position_transformed(output_size);
+                    state.dispatch_pointer_motion(location, event.time_msec());
                 }
+                InputEvent::PointerButton { event } => state.dispatch_pointer_button(event),
+                InputEvent::PointerAxis { event } => state.dispatch_pointer_axis(event),
                 _ => {}
             },
             _ => {}
@@ -562,8 +703,8 @@ mod tests {
     use smithay::input::keyboard::keysyms;
 
     use super::{
-        CompositorConfig, DEFAULT_SOCKET, WORKSPACE_COUNT, parse_arguments, window_location,
-        workspace_from_keysym,
+        CompositorConfig, DEFAULT_SOCKET, WORKSPACE_COUNT, clamp_pointer_location, parse_arguments,
+        window_location, workspace_from_keysym,
     };
 
     #[test]
@@ -613,5 +754,18 @@ mod tests {
         assert_eq!(workspace_from_keysym(keysyms::KEY_0), None);
         assert_eq!(window_location(0), (0, 0));
         assert_eq!(window_location(2), (64, 64));
+    }
+
+    #[test]
+    fn pointer_location_is_clamped_inside_the_output() {
+        let output_size = smithay::utils::Size::from((1920, 1080));
+        assert_eq!(
+            clamp_pointer_location((-24.5, 2048.0).into(), output_size),
+            (0.0, 1079.0).into()
+        );
+        assert_eq!(
+            clamp_pointer_location((960.5, 540.25).into(), output_size),
+            (960.5, 540.25).into()
+        );
     }
 }

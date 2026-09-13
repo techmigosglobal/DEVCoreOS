@@ -156,7 +156,7 @@ slint::slint! {
                     Text { text: "OS"; color: #718096; font-size: 19px; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; }
                     Text {
-                        text: "Setup · " + (root.step + 1) + " of 8";
+                        text: "Setup · " + (root.step + 1) + " of 9";
                         color: #397df4;
                         font-size: 13px;
                         font-weight: 650;
@@ -179,6 +179,7 @@ slint::slint! {
                     Text { text: "Password"; color: root.step == 5 ? #287cf1 : #8b9aad; font-size: 11px; font-weight: root.step == 5 ? 700 : 400; vertical-alignment: center; }
                     Text { text: "Hardware"; color: root.step == 6 ? #287cf1 : #8b9aad; font-size: 11px; font-weight: root.step == 6 ? 700 : 400; vertical-alignment: center; }
                     Text { text: "Profile"; color: root.step == 7 ? #287cf1 : #8b9aad; font-size: 11px; font-weight: root.step == 7 ? 700 : 400; vertical-alignment: center; }
+                    Text { text: "Review"; color: root.step == 8 ? #287cf1 : #8b9aad; font-size: 11px; font-weight: root.step == 8 ? 700 : 400; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; }
                 }
             }
@@ -318,6 +319,19 @@ slint::slint! {
                                 Rectangle { vertical-stretch: 1; }
                             }
                         }
+                        Rectangle {
+                            visible: root.step == 8;
+                            width: 100%; height: 100%;
+                            VerticalLayout {
+                                padding: 48px; spacing: 16px;
+                                Text { text: "Review your DevCore setup"; color: #101827; font-size: 28px; font-weight: 800; }
+                                Text { text: "Everything is ready. Confirm these choices before creating the account and applying system settings."; color: #5d6b80; font-size: 14px; wrap: word-wrap; }
+                                Rectangle { height: 1px; background: #e5edf6; }
+                                Text { text: "Language: " + root.language + "\nKeyboard: " + root.keyboard + "\nTime zone: " + root.timezone + "\nAccount: " + root.username + "\nDevice: " + root.hostname + "\nProfile: " + root.profile; color: #334155; font-size: 15px; wrap: word-wrap; }
+                                Rectangle { vertical-stretch: 1; }
+                                Text { text: root.status-message; color: #287cf1; font-size: 13px; wrap: word-wrap; }
+                            }
+                        }
                     }
                 }
             }
@@ -330,14 +344,14 @@ slint::slint! {
                     Text { text: "Need help? You can return to these preferences later."; color: #718096; font-size: 12px; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; }
                     Button { visible: root.step > 0; enabled: !root.busy; text: "Back"; clicked => { root.back(); } }
-                    Button { visible: root.step < 7; enabled: !root.busy; text: "Next"; clicked => { root.next(); } }
+                    Button { visible: root.step < 8; enabled: !root.busy; text: "Next"; clicked => { root.next(); } }
+                    Button { visible: root.step == 8; enabled: !root.busy; text: "Finish"; clicked => { root.finish(); } }
                     Button { visible: root.step == 7; enabled: !root.busy; text: root.busy ? "Applying…" : "Finish"; clicked => { root.finish(); } }
                 }
             }
         }
     }
 }
-
 #[derive(Debug)]
 struct LoginController {
     session: Option<GreetdSession>,
@@ -514,7 +528,7 @@ fn run_first_boot(info: FirstBootInfo) -> Result<(), Box<dyn Error>> {
     let next_window = window.as_weak();
     window.on_next(move || {
         if let Some(window) = next_window.upgrade() {
-            window.set_step((window.get_step() + 1).min(7));
+            window.set_step((window.get_step() + 1).min(8));
         }
     });
 
@@ -538,6 +552,10 @@ fn run_first_boot(info: FirstBootInfo) -> Result<(), Box<dyn Error>> {
         let Some(window) = finish_window.upgrade() else {
             return;
         };
+        if window.get_step() < 8 {
+            window.set_step(8);
+            return;
+        }
         let password = window.get_account_password().to_string();
         if password != window.get_account_password_confirm().as_str() {
             window.set_status_message("Passwords do not match".into());

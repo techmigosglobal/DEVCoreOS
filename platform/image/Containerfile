@@ -66,4 +66,4 @@ RUN if [[ "$DEVCORE_SKIP_RUNTIME_PACKAGES" != "true" ]]; then \
     && chmod 0755 /usr/libexec/devcore/devcore-updated \
     && chmod 0755 /usr/libexec/devcore/devcore-provisiond \
     && chmod 0755 /usr/bin/devcore-compositor \
-    && systemctl enable devcored.service devcore-hardwared.service devcore-updated.service greetd.service
+    && systemctl enable devcored.service greetd.service

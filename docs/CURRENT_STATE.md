@@ -25,12 +25,13 @@
 the shell's live-install boot-entry guard. The native installer, privileged
 daemon, and static image contract compile and have shell/XML/JSON validation.
 
-GitHub Actions run `34706001864` built the native installer image with the
+GitHub Actions run `34732308481` built the native installer image with the
 digest-pinned Fedora 43 base, assembled a non-empty 2.6 GiB x86-64 ISO, wrote
 its SHA-256 checksum, and uploaded both as artifact
-`devcoreos-native-installer-e7c822a2e3e5fa039106c5702f2909bf2ed1d153`.
-The CI workflow now also requires a disposable UEFI/KVM smoke boot to reach
-Linux and systemd before future ISO artifacts are uploaded.
+`devcoreos-native-installer-d08dce27ca44b589a55aabc1862429d3fffccb1c`.
+That run completed the disposable UEFI/KVM live-media smoke boot and uploaded
+the artifact. The active workflow now places QCOW2 boot and SELinux startup
+gates before ISO assembly.
 
 ## Release gates still open
 

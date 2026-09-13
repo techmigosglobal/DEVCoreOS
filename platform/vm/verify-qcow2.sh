@@ -59,7 +59,30 @@ grep -Eqi 'systemd(\[| |$)' "$serial_log" || {
     exit 1
 }
 
+if [[ "${DEVCORE_SECURITY_CHECK:-0}" == "1" ]]; then
+    # The security job intentionally uses the same immutable disk and UEFI
+    # path as the boot job, then rejects SELinux AVCs observed during startup.
+    # A serial-only guest has no shell channel, so this is scoped to startup
+    # evidence rather than pretending to prove every policy decision.
+    if grep -Eqi 'avc:[[:space:]]*denied|selinux[^[:cntrl:]]*denied' "$serial_log"; then
+        printf 'error: SELinux denial found in guest serial log: %s\n' "$serial_log" >&2
+        exit 1
+    fi
+    grep -Eqi 'SELinux:[[:space:]]+(Initializing|.*Policy loaded|.*initialized)' "$serial_log" || {
+        printf 'error: security check found no SELinux initialization marker: %s\n' "$serial_log" >&2
+        exit 1
+    }
+fi
+if [[ "${DEVCORE_SECURITY_CHECK:-0}" != "0" && "${DEVCORE_SECURITY_CHECK:-0}" != "1" ]]; then
+    printf 'error: DEVCORE_SECURITY_CHECK must be 0 or 1\n' >&2
+    exit 1
+fi
+
 mkdir -p "$(dirname "$evidence_path")"
-printf '{"image_ref":"%s","boot_status":"passed","qemu_exit_status":%s,"serial_log":"%s"}\n' \
-    "$image_ref" "$qemu_status" "$serial_log" >"$evidence_path"
+security_status="not-requested"
+if [[ "${DEVCORE_SECURITY_CHECK:-0}" == "1" ]]; then
+    security_status="selinux-avc-clean-startup"
+fi
+printf '{"image_ref":"%s","boot_status":"passed","security_status":"%s","qemu_exit_status":%s,"serial_log":"%s"}\n' \
+    "$image_ref" "$security_status" "$qemu_status" "$serial_log" >"$evidence_path"
 printf 'QCOW2 UEFI boot evidence recorded: %s\n' "$evidence_path"

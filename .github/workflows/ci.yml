@@ -17,7 +17,7 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.90.0
@@ -25,14 +25,162 @@ jobs:
       - name: Install native link dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libxkbcommon-dev
-      - name: Validate source and native installer contracts
+          sudo apt-get install --yes --no-install-recommends \
+            libxkbcommon-dev \
+            libdrm-dev \
+            libegl1-mesa-dev \
+            libgbm-dev \
+            libinput-dev \
+            libseat-dev \
+            libudev-dev
+      - name: Validate source and contracts
         run: platform/ci.sh
+
+  build_oci:
+    name: Build BaseOS OCI
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      ref: ${{ steps.push.outputs.ref }}
+    env:
+      DEVCORE_IMAGE_REF: ghcr.io/techmigosglobal/devcoreos:ci-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            jq podman libxkbcommon-dev libdrm-dev libegl1-mesa-dev \
+            libgbm-dev libinput-dev libseat-dev libudev-dev
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.90.0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log Podman in to GHCR
+        run: printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push BaseOS OCI
+        id: push
+        run: |
+          platform/image/build-oci.sh
+          digest_file="$RUNNER_TEMP/devcore-base.digest"
+          podman push --digestfile "$digest_file" "$DEVCORE_IMAGE_REF"
+          digest="$(<"$digest_file")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          base_ref="ghcr.io/techmigosglobal/devcoreos@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "ref=$base_ref" >> "$GITHUB_OUTPUT"
+
+  build_qcow2:
+    name: Build QCOW2 image
+    needs: build_oci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            docker.io qemu-utils ovmf
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull immutable BaseOS into the Image Builder engine
+        run: |
+          sudo systemctl start docker
+          docker info
+          docker pull "${{ needs.build_oci.outputs.ref }}"
+      - name: Select pinned Image Builder
+        run: |
+          builder_image="$(sed -n 's/^image_builder_image = \"\(.*\)\"$/\1/p' platform/image/base-images.lock)"
+          [[ "$builder_image" =~ ^ghcr\.io/osbuild/image-builder-cli@sha256:[0-9a-f]{64}$ ]]
+          printf 'DEVCORE_IMAGE_BUILDER_IMAGE=%s\n' "$builder_image" >> "$GITHUB_ENV"
+      - name: Build QCOW2 with the pinned Image Builder
+        env:
+          DEVCORE_IMAGE_BUILDER_CONTAINER: "1"
+          DEVCORE_OUTPUT_DIR: ${{ github.workspace }}/artifacts/qcow2
+        run: platform/image/build-qcow2.sh "${{ needs.build_oci.outputs.ref }}"
+      - name: Verify QCOW2 output
+        run: test -s artifacts/qcow2/disk.qcow2
+      - name: Upload QCOW2
+        uses: actions/upload-artifact@v4
+        with:
+          name: devcoreos-qcow2-${{ github.sha }}
+          path: artifacts/qcow2/disk.qcow2
+          retention-days: 7
+
+  test_qcow2:
+    name: VM boot test (QCOW2)
+    needs: build_qcow2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            qemu-system-x86 ovmf
+      - name: Download QCOW2
+        uses: actions/download-artifact@v4
+        with:
+          name: devcoreos-qcow2-${{ github.sha }}
+          path: artifacts/qcow2
+      - name: Boot-test QCOW2
+        run: |
+          test -c /dev/kvm
+          sudo chmod 0666 /dev/kvm
+          DEVCORE_VM_TIMEOUT_SECONDS=120 \
+          OVMF_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd \
+          OVMF_VARS=/usr/share/OVMF/OVMF_VARS_4M.fd \
+          platform/vm/verify-qcow2.sh artifacts/qcow2/disk.qcow2
+
+  test_security:
+    name: Security gate (SELinux AVC clean)
+    needs: test_qcow2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            qemu-system-x86 ovmf
+      - name: Download QCOW2
+        uses: actions/download-artifact@v4
+        with:
+          name: devcoreos-qcow2-${{ github.sha }}
+          path: artifacts/qcow2
+      - name: Run security checks
+        run: |
+          test -c /dev/kvm
+          sudo chmod 0666 /dev/kvm
+          DEVCORE_SECURITY_CHECK=1 \
+          OVMF_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd \
+          OVMF_VARS=/usr/share/OVMF/OVMF_VARS_4M.fd \
+          platform/vm/verify-qcow2.sh artifacts/qcow2/disk.qcow2
 
   build_iso:
     name: Build native installer ISO
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    needs: validate
+    needs: [test_security, build_oci]
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     permissions:
@@ -43,7 +191,7 @@ jobs:
       DEVCORE_INSTALLER_IMAGE_REF: ghcr.io/techmigosglobal/devcoreos-installer:ci-${{ github.sha }}
       DEVCORE_INSTALLER_OUTPUT_DIR: ${{ github.workspace }}/artifacts/native-installer-iso
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.90.0
@@ -51,49 +199,26 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            jq \
-            libdrm-dev \
-            libegl1-mesa-dev \
-            libgbm-dev \
-            libinput-dev \
-            libseat-dev \
-            libudev-dev \
-            libxkbcommon-dev \
-            ovmf \
-            qemu-system-x86 \
-            qemu-utils \
-            podman
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
+            jq libdrm-dev libegl1-mesa-dev libgbm-dev libinput-dev \
+            libseat-dev libudev-dev libxkbcommon-dev ovmf qemu-system-x86 qemu-utils podman
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log Podman in to GHCR
-        shell: bash
         run: printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and publish commit BaseOS
-        id: base
-        shell: bash
+      - name: Pull pinned base (already pushed by build_oci)
         run: |
-          platform/image/build-oci.sh
-          digest_file="$RUNNER_TEMP/devcore-base.digest"
-          podman push --digestfile "$digest_file" "$DEVCORE_IMAGE_REF"
-          digest="$(<"$digest_file")"
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-          base_ref="ghcr.io/techmigosglobal/devcoreos@$digest"
-          podman pull "$base_ref"
-          printf 'ref=%s\n' "$base_ref" >> "$GITHUB_OUTPUT"
+          podman pull "${{ needs.build_oci.outputs.ref }}"
       - name: Build native installer image
-        shell: bash
         env:
-          DEVCORE_BASE_IMAGE: ${{ steps.base.outputs.ref }}
-          DEVCORE_INSTALLER_BASE_IMAGE_REF: ${{ steps.base.outputs.ref }}
+          DEVCORE_BASE_IMAGE: ${{ needs.build_oci.outputs.ref }}
+          DEVCORE_INSTALLER_BASE_IMAGE_REF: ${{ needs.build_oci.outputs.ref }}
         run: platform/image/build-native-installer-oci.sh
       - name: Pull pinned Image Builder
-        shell: bash
         run: |
           builder_image="$(sed -n 's/^image_builder_image = "\(.*\)"$/\1/p' platform/image/base-images.lock)"
           [[ "$builder_image" == *@sha256:* ]]
@@ -103,19 +228,13 @@ jobs:
         run: platform/image/build-native-installer-iso.sh
       - name: Verify ISO artifact
         id: iso
-        shell: bash
         run: |
           mapfile -t iso_files < <(find "$DEVCORE_INSTALLER_OUTPUT_DIR" -type f -name '*.iso' -print)
-          [[ "${#iso_files[@]}" -eq 1 ]] || {
-            printf 'error: expected exactly one ISO, found %s\n' "${#iso_files[@]}" >&2
-            exit 1
-          }
+          [[ "${#iso_files[@]}" -eq 1 ]]
           test -s "${iso_files[0]}"
           sha256sum "${iso_files[0]}" > "${iso_files[0]}.sha256"
           printf 'path=%s\n' "${iso_files[0]}" >> "$GITHUB_OUTPUT"
-          ls -lh "${iso_files[0]}" "${iso_files[0]}.sha256"
       - name: Smoke boot native installer ISO
-        shell: bash
         timeout-minutes: 5
         env:
           DEVCORE_VM_TIMEOUT_SECONDS: 120
@@ -125,8 +244,8 @@ jobs:
           test -c /dev/kvm
           sudo chmod 0666 /dev/kvm
           platform/vm/verify-native-installer.sh "${{ steps.iso.outputs.path }}"
-      - name: Upload native installer ISO
-        uses: actions/upload-artifact@v7
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: devcoreos-native-installer-${{ github.sha }}
           path: |

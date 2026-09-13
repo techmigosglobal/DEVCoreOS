@@ -21,7 +21,7 @@ use smithay::{
             output::{DrmOutput, DrmOutputManager, DrmOutputRenderElements},
         },
         egl::context::ContextPriority,
-        input::{InputEvent, KeyboardKeyEvent},
+        input::{AbsolutePositionEvent, Event, InputEvent, KeyboardKeyEvent, PointerMotionEvent},
         libinput::{LibinputInputBackend, LibinputSessionInterface},
         renderer::{
             element::{
@@ -151,6 +151,7 @@ pub(crate) fn run(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
         })?;
     let planes = output_manager.device().planes(&crtc)?;
     let wl_mode = WaylandMode::from(drm_mode);
+    let output_size = wl_mode.size.to_logical(1);
     let (physical_width, physical_height) = connector.size().unwrap_or((0, 0));
     let output = Output::new(
         "DevCore-0".to_owned(),
@@ -260,13 +261,29 @@ pub(crate) fn run(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
                         }
                     }
                 }
-                InputEvent::PointerMotionAbsolute { .. } => {
-                    let focused_surface = data.app.focused_surface();
-                    if let Some(surface) = focused_surface
-                        && let Some(keyboard) = data.app.seat.get_keyboard()
-                    {
-                        keyboard.set_focus(&mut data.app, Some(surface), 0.into());
-                    }
+                InputEvent::PointerMotion { event } => {
+                    let location = super::clamp_pointer_location(
+                        data.app
+                            .seat
+                            .get_pointer()
+                            .map(|pointer| pointer.current_location())
+                            .unwrap_or_default()
+                            + event.delta(),
+                        output_size,
+                    );
+                    data.app
+                        .dispatch_pointer_motion(location, event.time_msec());
+                }
+                InputEvent::PointerMotionAbsolute { event } => {
+                    let location = event.position_transformed(output_size);
+                    data.app
+                        .dispatch_pointer_motion(location, event.time_msec());
+                }
+                InputEvent::PointerButton { event } => {
+                    data.app.dispatch_pointer_button(event);
+                }
+                InputEvent::PointerAxis { event } => {
+                    data.app.dispatch_pointer_axis(event);
                 }
                 _ => {}
             }
@@ -355,7 +372,8 @@ fn create_app(display_handle: &DisplayHandle) -> App {
         smithay::wayland::compositor::CompositorState::new::<App>(display_handle);
     let shm_state = smithay::wayland::shm::ShmState::new::<App>(display_handle, vec![]);
     let mut seat_state = smithay::input::SeatState::new();
-    let seat = seat_state.new_wl_seat(display_handle, "devcore-seat");
+    let mut seat = seat_state.new_wl_seat(display_handle, "devcore-seat");
+    seat.add_pointer();
     let mut app = App {
         compositor_state,
         xdg_shell_state: smithay::wayland::shell::xdg::XdgShellState::new::<App>(display_handle),
