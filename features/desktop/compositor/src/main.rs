@@ -26,7 +26,7 @@ use smithay::{
     backend::{
         input::{
             AbsolutePositionEvent, Axis, AxisSource, Event, InputBackend, InputEvent, KeyState,
-            KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
+            KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent,
         },
         renderer::{
             Color32F, Frame, Renderer,
@@ -575,7 +575,9 @@ fn run_nested(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
                     let location = event.position_transformed(output_size);
                     state.dispatch_pointer_motion(location, event.time_msec());
                 }
-                InputEvent::PointerButton { event } => state.dispatch_pointer_button(event),
+                InputEvent::PointerButton { event } => {
+                    state.dispatch_pointer_button::<winit::WinitInput>(event)
+                }
                 InputEvent::PointerAxis { event } => state.dispatch_pointer_axis(event),
                 _ => {}
             },

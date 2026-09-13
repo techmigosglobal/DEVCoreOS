@@ -22,6 +22,7 @@ native-drm = [
 [dependencies]
 smithay = { version = "=0.7.0", default-features = false, features = [
     "backend_winit",
+    "desktop",
     "renderer_gl",
     "wayland_frontend",
 ] }
