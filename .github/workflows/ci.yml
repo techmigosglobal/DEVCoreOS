@@ -96,7 +96,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            docker.io qemu-utils ovmf
+            qemu-utils ovmf
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
