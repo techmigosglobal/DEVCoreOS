@@ -59,6 +59,9 @@ jobs:
             libseat-dev \
             libudev-dev \
             libxkbcommon-dev \
+            ovmf \
+            qemu-system-x86 \
+            qemu-utils \
             podman
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -111,6 +114,17 @@ jobs:
           sha256sum "${iso_files[0]}" > "${iso_files[0]}.sha256"
           printf 'path=%s\n' "${iso_files[0]}" >> "$GITHUB_OUTPUT"
           ls -lh "${iso_files[0]}" "${iso_files[0]}.sha256"
+      - name: Smoke boot native installer ISO
+        shell: bash
+        timeout-minutes: 5
+        env:
+          DEVCORE_VM_TIMEOUT_SECONDS: 120
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
+        run: |
+          test -c /dev/kvm
+          sudo chmod 0666 /dev/kvm
+          platform/vm/verify-native-installer.sh "${{ steps.iso.outputs.path }}"
       - name: Upload native installer ISO
         uses: actions/upload-artifact@v7
         with:
@@ -118,5 +132,7 @@ jobs:
           path: |
             ${{ steps.iso.outputs.path }}
             ${{ steps.iso.outputs.path }}.sha256
+            artifacts/evidence/native-installer-vm/live-boot.json
+            artifacts/evidence/native-installer-vm/live-boot.serial.log
           if-no-files-found: error
           retention-days: 7

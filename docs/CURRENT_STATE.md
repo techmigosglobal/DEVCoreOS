@@ -19,17 +19,24 @@
   DevCore OS** entries. Both enter the `devcore-live` desktop; the Install
   entry opens the native installer while the desktop remains usable.
 
-## Validation completed locally
+## Validation and artifact evidence
 
 `cargo test --workspace` passes, including installer domain/state tests and
 the shell's live-install boot-entry guard. The native installer, privileged
 daemon, and static image contract compile and have shell/XML/JSON validation.
 
+GitHub Actions run `34706001864` built the native installer image with the
+digest-pinned Fedora 43 base, assembled a non-empty 2.6 GiB x86-64 ISO, wrote
+its SHA-256 checksum, and uploaded both as artifact
+`devcoreos-native-installer-e7c822a2e3e5fa039106c5702f2909bf2ed1d153`.
+The CI workflow now also requires a disposable UEFI/KVM smoke boot to reach
+Linux and systemd before future ISO artifacts are uploaded.
+
 ## Release gates still open
 
-No native installer ISO or target installation has been built or booted in
-this workspace. The Image Builder CLI and its Fedora layers are not available
-locally, so these claims remain deliberately unmade:
+ISO assembly is confirmed in GitHub Actions. A complete interactive target
+installation and installed-system boot have not yet been demonstrated, so
+these claims remain deliberately unmade:
 
 - live desktop graphical boot;
 - installer D-Bus service under a real system bus and polkit session;
