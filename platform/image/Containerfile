@@ -1,5 +1,5 @@
 # x86-64 Fedora bootc runtime pinned in platform/image/base-images.lock.
-ARG DEVCORE_BASE_IMAGE=quay.io/fedora/fedora-bootc@sha256:b81bc4c7793ad4ea4c2999dcab93eab44287b13cf0b2304cb1bb510f734fb277
+ARG DEVCORE_BASE_IMAGE=quay.io/fedora/fedora-bootc@sha256:cc0ace5a606b14e8f033ae25a1574b50d22beac2841e25dca32626730aec4df7
 FROM ${DEVCORE_BASE_IMAGE}
 ARG DEVCORE_SKIP_RUNTIME_PACKAGES=false
 
