@@ -578,7 +578,9 @@ fn run_nested(config: &CompositorConfig) -> Result<(), Box<dyn Error>> {
                 InputEvent::PointerButton { event } => {
                     state.dispatch_pointer_button::<winit::WinitInput>(event)
                 }
-                InputEvent::PointerAxis { event } => state.dispatch_pointer_axis(event),
+                InputEvent::PointerAxis { event } => {
+                    state.dispatch_pointer_axis::<winit::WinitInput>(event)
+                }
                 _ => {}
             },
             _ => {}
